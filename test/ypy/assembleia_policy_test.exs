@@ -20,25 +20,25 @@ defmodule Ypy.Assembleia.PolicyTest do
   end
 
   test "tally passes with quorum and a simple majority" do
-    assert Policy.tally([:yes, :yes, :no], 5) == :passed
-    assert Policy.tally([:yes, :yes, :no], 4) == :passed
+    assert Policy.tally([:sim, :sim, :nao], 5) == :aprovada
+    assert Policy.tally([:sim, :sim, :nao], 4) == :aprovada
   end
 
-  test "tally rejects a tie and a no majority" do
-    assert Policy.tally([:yes, :no], 4) == :rejected
-    assert Policy.tally([:yes, :no, :no], 5) == :rejected
-    assert Policy.tally([:no, :no], 4) == :rejected
+  test "tally rejects a tie and a nao majority" do
+    assert Policy.tally([:sim, :nao], 4) == :rejeitada
+    assert Policy.tally([:sim, :nao, :nao], 5) == :rejeitada
+    assert Policy.tally([:nao, :nao], 4) == :rejeitada
   end
 
-  test "tally expires when the quorum is missed, even with every vote a yes" do
-    assert Policy.tally([:yes, :yes], 5) == :expired
-    assert Policy.tally([:yes], 7) == :expired
-    assert Policy.tally([], 5) == :expired
+  test "tally expires when the quorum is missed, even with every vote a sim" do
+    assert Policy.tally([:sim, :sim], 5) == :expirada
+    assert Policy.tally([:sim], 7) == :expirada
+    assert Policy.tally([], 5) == :expirada
   end
 
-  test "a choice that is neither yes nor no is not a vote" do
-    assert Policy.tally([:yes, :maybe], 2) == :passed
-    assert Policy.tally([:maybe], 2) == :expired
+  test "a choice that is neither sim nor nao is not a vote" do
+    assert Policy.tally([:sim, :maybe], 2) == :aprovada
+    assert Policy.tally([:maybe], 2) == :expirada
   end
 
   test "expiry passes exactly at the turn of the deadline" do

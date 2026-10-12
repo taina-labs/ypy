@@ -5,13 +5,13 @@ defmodule Ypy.Assembleia.Policy do
 
   Os verbos, o armazenamento e o worker que fecha propostas sao do produto;
   aqui ficam as respostas que o ciclo precisa. Votos chegam como a lista de
-  escolhas, `:yes` e `:no`, e a unicidade de voto por morador e do banco, nao
+  escolhas, `:sim` e `:nao`, e a unicidade de voto por morador e do banco, nao
   daqui. Ato sensivel nenhum roda sem proposta aprovada como token de
   autoridade; a politica so diz o que a comunidade decidiu.
   """
 
   @typedoc "A escolha de um voto."
-  @type escolha :: :yes | :no
+  @type escolha :: :sim | :nao
 
   @doc "Quorum para uma Tekoa com `moradores` membros: ceil(moradores/2)."
   @spec quorum(non_neg_integer()) :: non_neg_integer()
@@ -21,21 +21,21 @@ defmodule Ypy.Assembleia.Policy do
   @doc """
   O que uma proposta fechada vale.
 
-  :passed quando os votos formam o quorum e a maioria simples diz sim;
-  :expired quando o quorum nao se forma, mesmo com todos os poucos votos dizendo
-  sim; :rejected quando o quorum se forma e nao aprova, empate incluso. Uma
-  escolha que nao e :yes nem :no nao e um voto e nao conta.
+  :aprovada quando os votos formam o quorum e a maioria simples diz sim;
+  :expirada quando o quorum nao se forma, mesmo com todos os poucos votos dizendo
+  sim; :rejeitada quando o quorum se forma e nao aprova, empate incluso. Uma
+  escolha que nao e :sim nem :nao nao e um voto e nao conta.
   """
-  @spec tally([escolha], non_neg_integer()) :: :passed | :rejected | :expired
+  @spec tally([escolha], non_neg_integer()) :: :aprovada | :rejeitada | :expirada
   def tally(votes, moradores) when is_list(votes) do
-    votes = Enum.filter(votes, &(&1 in [:yes, :no]))
+    votes = Enum.filter(votes, &(&1 in [:sim, :nao]))
 
     if length(votes) < quorum(moradores) do
-      :expired
+      :expirada
     else
-      if Enum.count(votes, &(&1 == :yes)) > Enum.count(votes, &(&1 == :no)),
-        do: :passed,
-        else: :rejected
+      if Enum.count(votes, &(&1 == :sim)) > Enum.count(votes, &(&1 == :nao)),
+        do: :aprovada,
+        else: :rejeitada
     end
   end
 
