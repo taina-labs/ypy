@@ -24,9 +24,19 @@ defmodule Ypy.MixProject do
     [preferred_envs: [precommit: :test]]
   end
 
-  # Empty on purpose while the design (RFC 006) is open. Every dependency
-  # added here is a decision, not a default.
-  defp deps, do: []
+  # Dependencies are decisions, not defaults (RFC 006). Ecto stands under the
+  # schema layer and bcrypt under credentials; both are runtime. The SQLite
+  # driver, stream_data and ex_doc never reach :prod.
+  defp deps do
+    [
+      {:ecto, "~> 3.14"},
+      {:ecto_sql, "~> 3.14"},
+      {:bcrypt_elixir, "~> 3.3"},
+      {:ecto_sqlite3, "~> 0.25", only: [:dev, :test]},
+      {:stream_data, "~> 1.4", only: [:dev, :test]},
+      {:ex_doc, "~> 0.40.4", only: :dev, runtime: false}
+    ]
+  end
 
   defp aliases do
     [
