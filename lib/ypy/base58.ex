@@ -1,10 +1,10 @@
 defmodule Ypy.Base58 do
-  @moduledoc "Base58btc encoding (Bitcoin alphabet), as used by multibase `z`."
+  @moduledoc "Codificacao base58btc (alfabeto Bitcoin), como usada pelo multibase `z`."
 
   @alphabet ~c"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
   @decode_map Map.new(Enum.with_index(@alphabet))
 
-  @doc "Encodes a binary as base58btc."
+  @doc "Codifica um binario como base58btc."
   def encode(bin) when is_binary(bin) do
     zeros = leading_zeros(bin, 0)
     chars = encode_int(:binary.decode_unsigned(bin), [])
@@ -20,7 +20,7 @@ defmodule Ypy.Base58 do
     encode_int(div(n, 58), [Enum.fetch!(@alphabet, rem(n, 58)) | acc])
   end
 
-  @doc "Decodes base58btc. Raises ArgumentError on a character outside the alphabet."
+  @doc "Decodifica base58btc. Levanta ArgumentError em caractere fora do alfabeto."
   def decode!(str) when is_binary(str) do
     chars = String.to_charlist(str)
     {ones, rest} = Enum.split_while(chars, &(&1 == ?1))

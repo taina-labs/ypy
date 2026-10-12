@@ -1,9 +1,9 @@
 defmodule Ypy.Varint do
-  @moduledoc "Unsigned LEB128 varints, as used by multihash, CID, and CAR."
+  @moduledoc "Varints LEB128 sem sinal, como usados por multihash, CID e CAR."
 
   import Bitwise
 
-  @doc "Encodes one unsigned integer. Raises FunctionClauseError on a negative one."
+  @doc "Codifica um inteiro sem sinal. Levanta FunctionClauseError em um negativo."
   def encode(n) when is_integer(n) and n >= 0, do: encode(n, [])
 
   defp encode(n, acc) when n < 0x80, do: IO.iodata_to_binary(Enum.reverse([n | acc]))
@@ -13,7 +13,7 @@ defmodule Ypy.Varint do
     encode(n >>> 7, [byte | acc])
   end
 
-  @doc "Returns {value, rest}."
+  @doc "Retorna {value, rest}."
   def decode(bin), do: decode(bin, 0, 0)
 
   defp decode(<<>>, _acc, _shift), do: raise(ArgumentError, "truncated varint")

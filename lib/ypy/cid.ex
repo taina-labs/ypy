@@ -1,5 +1,5 @@
 defmodule Ypy.Cid do
-  @moduledoc "CIDv1: version, codec, and a sha2-256 multihash."
+  @moduledoc "CIDv1: versao, codec e um multihash sha2-256."
 
   alias Ypy.Base32
   alias Ypy.Varint
@@ -10,18 +10,18 @@ defmodule Ypy.Cid do
 
   defstruct version: 1, codec: @dag_cbor, hash_algo: @sha2_256, digest: nil
 
-  @doc "Codec for content-addressed raw bytes."
+  @doc "Codec para bytes brutos enderecados por conteudo."
   def raw, do: @raw
 
-  @doc "Multihash code for sha2-256."
+  @doc "Codigo multihash para sha2-256."
   def sha2_256, do: @sha2_256
 
-  @doc "Builds a CIDv1 for `data` under the given codec (default dag-cbor)."
+  @doc "Constroi um CIDv1 para `data` sob o codec dado (padrao dag-cbor)."
   def from_data(data, codec \\ @dag_cbor) do
     %__MODULE__{codec: codec, digest: :crypto.hash(:sha256, data)}
   end
 
-  @doc "Serializes to version, codec, multihash bytes."
+  @doc "Serializa para versao, codec e bytes de multihash."
   def to_bytes(%__MODULE__{} = cid) do
     Varint.encode(cid.version) <>
       Varint.encode(cid.codec) <>
@@ -30,20 +30,21 @@ defmodule Ypy.Cid do
       cid.digest
   end
 
-  @doc "Renders the multibase string form: a b prefix over lowercase base32."
+  @doc "Renderiza a forma string do multibase: prefixo b sobre base32 minuscula."
   def to_string(cid), do: "b" <> Base32.encode(to_bytes(cid))
 
-  @doc "Parses a base32-multibase CID string. Raises on malformed input."
+  @doc "Parseia uma string CID multibase base32. Levanta erro em entrada malformada."
   def parse("b" <> rest), do: rest |> Base32.decode!() |> from_bytes()
   def parse(_), do: raise(ArgumentError, "not a multibase base32 CID")
 
   @doc """
-  Parses a CID string, or answers :error.
+  Parseia uma string CID, ou responde :error.
 
-  Raising is right for a CID the kernel itself computed and wrong for one
-  untrusted input supplied: the raise happens inside whoever handles the
-  input, so a malformed string takes that handling down with it. Every path
-  that reads a CID from the wire goes through here, not through parse/1.
+  Levantar erro e o certo para um CID que o proprio kernel calculou e o
+  errado para um que chega de entrada nao confiavel: o raise acontece dentro
+  de quem trata a entrada, entao uma string malformada derruba esse
+  tratamento junto. Todo caminho que le um CID do fio passa por aqui, nao
+  por parse/1.
   """
   def safe_parse(cid) do
     {:ok, parse(cid)}
@@ -51,7 +52,7 @@ defmodule Ypy.Cid do
     ArgumentError -> :error
   end
 
-  @doc "Parses the binary form. Raises ArgumentError on a version other than 1 or a malformed tail."
+  @doc "Parseia a forma binaria. Levanta ArgumentError em versao diferente de 1 ou cauda malformada."
   def from_bytes(bin) do
     {version, rest} = Varint.decode(bin)
 

@@ -1,46 +1,46 @@
 defmodule Ypy.Secp256k1 do
   @moduledoc """
-  secp256k1 helpers: point compression, multibase public keys, and
-  ECDSA signatures in the exact shape ATProto expects (raw, low-S).
+  Utilitarios secp256k1: compressao de pontos, chaves publicas multibase e
+  assinaturas ECDSA na forma exata que o ATProto espera (raw, low-S).
   """
 
   import Bitwise
 
-  # varint encoding of multicodec secp256k1-pub (0xE7)
+  # varint do multicodec secp256k1-pub (0xE7)
   @multicodec_prefix <<0xE7, 0x01>>
 
   @group_order 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 
-  @doc "Generates {compressed_public_key, private_key}."
+  @doc "Gera {compressed_public_key, private_key}."
   def generate_keypair do
     {pub, priv} = :crypto.generate_key(:ecdh, :secp256k1)
     {compress(pub), priv}
   end
 
-  @doc "Re-derives the compressed public key for a stored private key."
+  @doc "Re-deriva a chave publica comprimida a partir de uma chave privada armazenada."
   def public_from_private(priv) do
     {pub, ^priv} = :crypto.generate_key(:ecdh, :secp256k1, priv)
     compress(pub)
   end
 
-  @doc "Uncompressed point (0x04 <> x <> y) to SEC compressed form."
+  @doc "Ponto nao comprimido (0x04 <> x <> y) para a forma comprimida SEC."
   def compress(<<4, x::binary-32, y::binary-32>>) do
     prefix = if rem(:binary.decode_unsigned(y), 2) == 0, do: 0x02, else: 0x03
     <<prefix, x::binary>>
   end
 
-  @doc "`publicKeyMultibase` value for a compressed secp256k1 key."
+  @doc "Valor de `publicKeyMultibase` para uma chave secp256k1 comprimida."
   def public_key_multibase(compressed_pub) do
     "z" <> Ypy.Base58.encode(@multicodec_prefix <> compressed_pub)
   end
 
-  @doc "ECDSA/SHA-256 over payload, returned as raw r || s with low-S normalization."
+  @doc "ECDSA/SHA-256 sobre o payload, retornado como raw r || s com normalizacao low-S."
   def sign(priv, payload) do
     der = :crypto.sign(:ecdsa, :sha256, payload, [priv, :secp256k1])
     der_to_raw(der)
   end
 
-  @doc "DER sequence to fixed 64-byte r || s, folding high-S into low-S."
+  @doc "Sequencia DER para r || s fixo de 64 bytes, dobrando high-S em low-S."
   def der_to_raw(
         <<0x30, _len, 0x02, rlen, r::binary-size(rlen), 0x02, slen, s::binary-size(slen)>>
       ) do
@@ -55,7 +55,7 @@ defmodule Ypy.Secp256k1 do
     <<r_int::big-256, s_int::big-256>>
   end
 
-  @doc "Inverse of der_to_raw/1, for when you need to verify with :crypto."
+  @doc "Inverso de der_to_raw/1, para quando for preciso verificar com :crypto."
   def raw_to_der(<<r::big-256, s::big-256>>) do
     rb = der_integer(r)
     sb = der_integer(s)
