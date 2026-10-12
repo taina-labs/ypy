@@ -1,47 +1,41 @@
 # Ypy
 
-The kernel of the Taina ecosystem. A library, not an application.
+O kernel do ecossistema Taina. Uma biblioteca, nao uma aplicacao.
 
-Ypy (Tupi: origin) is the shared base that the products are built on: the Taina
-box (the community's private cloud), the hosted platform, and future products.
-It carries two things and only two things:
+Ypy (Tupi: origem) e a base compartilhada sobre a qual os produtos sao
+construidos: o box do Taina (a nuvem privada da comunidade), a plataforma
+hospedada e os produtos futuros. Ela carrega duas coisas, e so duas:
 
-1. **The schema.** The shapes of records and the wire contract. This is the
-   artifact that clients (Swift, Kotlin) mirror and that products share, so a
-   new product speaks the same vocabulary without re-deciding it.
-2. **The pure core.** Identity (Maraca), signed content-addressed records
-   (Ybira), the social model (zones, roles, the read rule), the mural and the
-   assembly. Pure functions: no process, no database, no clock beyond what is
-   passed in.
+1. **O schema.** As formas de record e o contrato de fio. E o artefato que os
+   clientes (Swift, Kotlin) espelham e que os produtos compartilham, para que
+   um produto novo fale o mesmo vocabulario sem redecidir.
+2. **O nucleo puro.** Identidade (Maraca), records assinados e endereçados por
+   conteudo (Ybira), o modelo social (zonas, papeis, a regra de leitura), o
+   mural e a assembleia. Funcoes puras: sem processo, sem banco, sem relogio
+   alem do que e passado como argumento.
 
-Everything that touches the world lives in adapters chosen by the product:
-persistence (SQLite on a community box, Postgres on the hosted profile),
-transport and auth, the HTTP surface, federation. The kernel never depends on a
-product; a product depends on the kernel.
+Tudo que toca o mundo vive em adapters escolhidos pelo produto: persistencia
+(SQLite no box da comunidade), transporte e autenticacao, a superficie HTTP, a
+federacao. O kernel nunca depende de um produto; um produto depende do kernel.
 
-## Status
+## Relacao com o Pesque
 
-Design phase. The boundary, the module layout and the license are decided in
-RFC 006 (to land in `taina-labs/tekoa`). This repository is a shell until that
-lands. No `lib/` tree yet, on purpose: the contract comes first.
+`zeetech/pesque` e um Personal Data Server para ATProto, tambem em Elixir. O
+Ypy reusa as **primitivas puras de protocolo** dele (DAG-CBOR, CID, a Merkle
+Search Tree, TID, CAR, varint, base32, base58, secp256k1, as formas de record e
+commit) sob a licenca WTFPL do Pesque. O Ypy NAO adota a semantica global-ATProto
+do Pesque (o diretorio PLC, o servidor OAuth, o crawl de relay, o firehose, o
+entryway): o kernel do Taina e community-first, `did:web`-first e praca-only, e
+a federacao entre Tekoas e um assunto posterior.
 
-## Relationship to Pesque
+## Licenca
 
-`zeetech/pesque` is a Personal Data Server for ATProto, also in Elixir. Ypy
-reuses its **pure protocol primitives** (DAG-CBOR, CID, the Merkle Search Tree,
-TID, CAR, varint, base32, base58, secp256k1, the record and commit shapes) under
-its WTFPL license. Ypy does NOT take Pesque's global-ATProto semantics (the PLC
-directory, the OAuth server, the relay crawl, the firehose, the entryway): the
-Taina kernel is a community-first, `did:web`-first, praça-only shape, and
-federation between Tekoas is a later concern.
+MPL-2.0 (Mozilla Public License 2.0). Copyleft por arquivo: mudancas nos
+arquivos do proprio Ypy ficam abertas, e um produto, inclusive proprietario
+como a plataforma hospedada, pode depender do Ypy e manter os proprios arquivos
+fechados. E por isso MPL e nao AGPL: o kernel e dependencia de codigo dos
+produtos, e um deles pode ser proprietario.
 
-## License
-
-MPL-2.0 (Mozilla Public License 2.0). File-level copyleft: changes to Ypy's own
-files stay open, and a product, including a proprietary one like the hosted
-platform, can depend on Ypy and keep its own files closed. That is why MPL over
-AGPL: the kernel is a code dependency of products, and one of them may be
-proprietary.
-
-Files derived from Pesque carry its WTFPL provenance and are relicensed here
-under MPL-2.0, which WTFPL permits. See "Relationship to Pesque".
+Arquivos derivados do Pesque carregam a proveniencia WTFPL dele e sao
+relicenciados aqui sob MPL-2.0, o que o WTFPL permite. Ver "Relacao com o
+Pesque".
