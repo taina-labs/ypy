@@ -37,6 +37,11 @@ federation between Tekoas is a later concern.
 
 ## License
 
-Not decided yet. It is a real fork: the kernel is a code dependency of products,
-and one of them (the hosted platform) may be proprietary, which an AGPL kernel
-would not allow. See RFC 006.
+MPL-2.0 (Mozilla Public License 2.0). File-level copyleft: changes to Ypy's own
+files stay open, and a product, including a proprietary one like the hosted
+platform, can depend on Ypy and keep its own files closed. That is why MPL over
+AGPL: the kernel is a code dependency of products, and one of them may be
+proprietary.
+
+Files derived from Pesque carry its WTFPL provenance and are relicensed here
+under MPL-2.0, which WTFPL permits. See "Relationship to Pesque".
