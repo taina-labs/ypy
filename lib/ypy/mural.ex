@@ -113,4 +113,72 @@ defmodule Ypy.Mural do
   end
 
   defp check_link(_entry, _expected_seq, _expected_prev), do: {:error, :bad_entry}
+
+  ## A projecao social
+
+  # A partir daqui a cadeia e lida do banco, com o repo sempre como primeiro
+  # argumento (RFC_006 D4). A matematica acima continua pura: verificar uma
+  # cadeia exportada nunca precisa de repo.
+
+  @doc """
+  O mural legivel: a projecao da cadeia, com filtro por tipo de entrada,
+  ordem da mais recente para a mais antiga e paginacao por cursor de `seq`.
+  Opcoes: `:tipo`, `:limit` (padrao 50), `:cursor` (seq do ultimo item).
+  """
+  @spec entradas(Ecto.Repo.t(), integer(), keyword()) :: [Ypy.Mural.Entry.t()]
+  def entradas(repo, tekoa_id, opts \\ []) do
+    import Ecto.Query
+
+    query =
+      if tipo = opts[:tipo] do
+        Ypy.Mural.Queries.por_tipo(tekoa_id, tipo)
+      else
+        Ypy.Mural.Queries.entradas(tekoa_id)
+      end
+
+    query =
+      if cursor = opts[:cursor] do
+        where(query, [e], e.seq < ^cursor)
+      else
+        query
+      end
+
+    repo.all(limit(query, ^(opts[:limit] || 50)))
+  end
+
+  @doc "Uma entrada pelo seq, dentro da Tekoa."
+  @spec entrada(Ecto.Repo.t(), integer(), pos_integer()) :: Ypy.Mural.Entry.t() | nil
+  def entrada(repo, tekoa_id, seq), do: repo.one(Ypy.Mural.Queries.por_seq(tekoa_id, seq))
+
+  @doc """
+  Verifica a cadeia inteira da Tekoa contra a chave publica ativa dela, do
+  genesis a cabeca. Devolve :ok, {:error, {indice, motivo}} na entrada que
+  quebra, ou {:error, :not_found} quando a Tekoa nao tem chave ativa.
+  """
+  @spec verificar_cadeia(Ecto.Repo.t(), integer()) ::
+          :ok | {:error, {non_neg_integer(), atom()}} | {:error, :not_found}
+  def verificar_cadeia(repo, tekoa_id) do
+    case Ypy.Maraca.Store.chave_ativa(repo, tekoa_id) do
+      %Ypy.Maraca.TekoaKey{pub: pub} ->
+        entries =
+          Ypy.Mural.Store.entradas(repo, tekoa_id)
+          |> Enum.map(&reconstruct/1)
+
+        verify_chain(pub, entries)
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
+  # A linha de volta ao mapa do fio CBOR: prev volta a ser link e a
+  # assinatura volta a ser byte string; a matematica pura confere o resto.
+  defp reconstruct(%Ypy.Mural.Entry{} = row) do
+    %{
+      "seq" => row.seq,
+      "prev" => row.prev && Cid.parse(row.prev),
+      "payload" => row.payload,
+      "signature" => row.signature
+    }
+  end
 end

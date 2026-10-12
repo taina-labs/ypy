@@ -1,0 +1,424 @@
+defmodule Ypy.Ybira.PersistenceTest do
+  use Ypy.PersistenceCase, async: false
+
+  alias Ypy.{BlobStore, BrokenKeys, Cid, Scope}
+  alias Ypy.Ybira
+
+  import Ypy.Factories
+
+  @mime "image/jpeg"
+
+  setup do
+    {tekoa, keys} = nova_tekoa(TestRepo)
+    {:ok, dono} = novo_ava(TestRepo, tekoa, username: "maria")
+    {:ok, outro} = novo_ava(TestRepo, tekoa, username: "joao")
+
+    %{
+      tekoa: tekoa,
+      keys: keys,
+      dono: dono,
+      dono_scope: %Scope{ava: dono, tekoa: tekoa},
+      outro: outro,
+      outro_scope: %Scope{ava: outro, tekoa: tekoa}
+    }
+  end
+
+  ## Upload
+
+  test "o upload completo: blob, record, arquivo, cota e entrada na cadeia", ctx do
+    {path, dados} = arquivo("conteudo da foto")
+    armazenamento = blobs()
+
+    {:ok, file} =
+      Ybira.upload(TestRepo, ctx.keys, armazenamento, ctx.dono_scope, path,
+        mime: @mime,
+        nome: "foto.jpg"
+      )
+
+    assert file.nome == "foto.jpg"
+    assert file.mime == @mime
+    assert file.tamanho == byte_size(dados)
+    assert file.zona == :casa
+    assert String.length(file.rkey) == 13
+
+    assert {:ok, ^dados} = fetch_blob(armazenamento, file.blob_cid)
+
+    tekoa = TestRepo.reload!(ctx.tekoa)
+    assert tekoa.storage_used_bytes == byte_size(dados)
+
+    cadeia = Ypy.Mural.entradas(TestRepo, ctx.tekoa.id)
+    assert Enum.map(cadeia, & &1.tipo) == ["put"]
+    assert Ypy.Mural.verificar_cadeia(TestRepo, ctx.tekoa.id) == :ok
+  end
+
+  test "upload sem mime detectado e erro", ctx do
+    {path, _dados} = arquivo("x")
+
+    assert Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path) ==
+             {:error, :missing_mime}
+  end
+
+  test "mime fora da allowlist e recusado", ctx do
+    {path, _dados} = arquivo("MZ executavel")
+
+    assert Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path,
+             mime: "application/x-msdownload"
+           ) == {:error, :mime_not_allowed}
+
+    # A allowlist e estendivel por chamada.
+    assert {:ok, _} =
+             Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path,
+               mime: "application/x-msdownload",
+               allowed_mimes: ["application/x-msdownload"]
+             )
+  end
+
+  test "cota estourada recusa e nao toca blob nem cadeia", _ctx do
+    {tekoa, keys} = nova_tekoa(TestRepo, domain: "cheia.test", storage_quota_bytes: 10)
+    {:ok, dono} = novo_ava(TestRepo, tekoa, username: "maria")
+    scope = %Scope{ava: dono, tekoa: tekoa}
+    {path, _dados} = arquivo(String.duplicate("a", 50))
+
+    assert Ybira.upload(TestRepo, keys, blobs(), scope, path, mime: @mime) ==
+             {:error, :storage_quota_exceeded}
+
+    assert Ypy.Mural.entradas(TestRepo, tekoa.id) == []
+    assert TestRepo.aggregate(Ypy.Ybira.Blob, :count) == 0
+  end
+
+  test "upload de bytes iguais deduplica o blob, mas cota conta por arquivo", ctx do
+    {path, dados} = arquivo("conteudo repetido")
+
+    {:ok, file1} =
+      Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path, mime: @mime)
+
+    {:ok, file2} =
+      Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.outro_scope, path,
+        mime: @mime,
+        nome: "outro.jpg"
+      )
+
+    assert file1.blob_cid == file2.blob_cid
+    assert TestRepo.aggregate(Ypy.Ybira.Blob, :count) == 1
+
+    tekoa = TestRepo.reload!(ctx.tekoa)
+    assert tekoa.storage_used_bytes == 2 * byte_size(dados)
+  end
+
+  test "upload em pasta alheia (mesmo publicada) e recusado; o dono sobe", ctx do
+    {:ok, pasta} = Ybira.criar_pasta(TestRepo, ctx.keys, ctx.dono_scope, "ferias")
+
+    {:ok, _} = Ybira.publicar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.folder.v0", pasta.rkey)
+
+    {path, _dados} = arquivo("conteudo")
+
+    assert Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.outro_scope, path,
+             mime: @mime,
+             folder: pasta.rkey
+           ) == {:error, :not_owner}
+
+    assert {:ok, file} =
+             Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path,
+               mime: @mime,
+               folder: pasta.rkey
+             )
+
+    assert file.folder_id == pasta.id
+  end
+
+  test "blob que nao sobe nao deixa arquivo e nao toca cadeia", ctx do
+    quebrado = BlobStore.Disk.new("/proc/ypy-nao-existe/nunca")
+    {path, _dados} = arquivo("conteudo")
+
+    assert {:error, _} =
+             Ybira.upload(TestRepo, ctx.keys, quebrado, ctx.dono_scope, path, mime: @mime)
+
+    assert Ypy.Mural.entradas(TestRepo, ctx.tekoa.id) == []
+  end
+
+  ## Leitura (a regra das duas zonas sobre linhas reais)
+
+  test "a matriz de leitura: praca, dono, concessao e casa alheia", ctx do
+    {path, _dados} = arquivo("foto da festa")
+
+    {:ok, casa} = Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path, mime: @mime)
+
+    # Publica: a praca qualquer morador le, sem concessao, sem atalho de zelador.
+    {:ok, _} = Ybira.publicar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", casa.rkey)
+    {:ok, publicado} = Ybira.get_file(TestRepo, ctx.dono_scope, casa.rkey)
+    assert publicado.zona == :praca
+    {:ok, _} = Ybira.get_file(TestRepo, ctx.outro_scope, casa.rkey)
+
+    # De volta para a casa, o outro morador para de ler.
+    {:ok, _} = Ybira.tirar_da_praca(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", casa.rkey)
+    assert Ybira.get_file(TestRepo, ctx.outro_scope, casa.rkey) == {:error, :forbidden}
+
+    # O dono concede; o leitor passa a ler; revogada, volta o proibido.
+    {:ok, concessao} =
+      Ypy.Maraca.conceder(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", casa.rkey, ctx.outro)
+
+    {:ok, _} = Ybira.get_file(TestRepo, ctx.outro_scope, casa.rkey)
+    {:ok, _} = Ypy.Maraca.revogar(TestRepo, ctx.keys, ctx.dono_scope, concessao)
+    assert Ybira.get_file(TestRepo, ctx.outro_scope, casa.rkey) == {:error, :forbidden}
+
+    # O zelador nao tem atalho: sem concessao, e proibido para ele tambem.
+    {:ok, zelador} = novo_ava(TestRepo, ctx.tekoa, username: "zel", papel: :zelador)
+
+    assert Ybira.get_file(TestRepo, %Scope{ava: zelador, tekoa: ctx.tekoa}, casa.rkey) ==
+             {:error, :forbidden}
+
+    # Rkey que nao existe e not_found, diferente de proibido.
+    assert Ybira.get_file(TestRepo, ctx.dono_scope, "zzzzzzzzzzzzz") == {:error, :not_found}
+  end
+
+  ## Listagens
+
+  test "a listagem so mostra o legivel e pagina pelo rkey", ctx do
+    {path, _dados} = arquivo("conteudo")
+
+    {:ok, meu} = Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path, mime: @mime)
+    {:ok, seu} = Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.outro_scope, path, mime: @mime)
+
+    # O outro nao ve o meu arquivo de casa.
+    rkeys = Enum.map(Ybira.list_files(TestRepo, ctx.outro_scope), & &1.rkey)
+    assert rkeys == [seu.rkey]
+
+    {:ok, _} = Ybira.publicar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", meu.rkey)
+
+    # Publicado, passa a aparecer para qualquer morador; a ordem e por rkey.
+    rkeys = Enum.map(Ybira.list_files(TestRepo, ctx.outro_scope), & &1.rkey)
+    assert Enum.sort(rkeys, :desc) == rkeys
+    assert Enum.count(rkeys) == 2
+    assert meu.rkey in rkeys and seu.rkey in rkeys
+
+    # Cursor: os rkeys menores que o maior.
+    pagina2 =
+      Ybira.list_files(TestRepo, ctx.outro_scope, cursor: Enum.max(rkeys))
+      |> Enum.map(& &1.rkey)
+
+    assert pagina2 == [Enum.min(rkeys)]
+
+    # A zona filtra a listagem.
+    praca = Enum.map(Ybira.list_files(TestRepo, ctx.outro_scope, zona: :praca), & &1.rkey)
+    assert praca == [meu.rkey]
+  end
+
+  ## Pastas
+
+  test "a pasta nasce, lista e obedece a regra de leitura", ctx do
+    {:ok, pasta} = Ybira.criar_pasta(TestRepo, ctx.keys, ctx.dono_scope, "documentos")
+
+    assert pasta.zona == :casa
+    assert Ybira.list_folders(TestRepo, ctx.outro_scope) == []
+
+    {:ok, _} = Ybira.publicar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.folder.v0", pasta.rkey)
+
+    assert Enum.map(Ybira.list_folders(TestRepo, ctx.outro_scope), & &1.nome) == ["documentos"]
+
+    {:ok, dentro} =
+      Ybira.criar_pasta(TestRepo, ctx.keys, ctx.dono_scope, "aninhada", parent: pasta.rkey)
+
+    ids = Enum.map(Ybira.list_folders(TestRepo, ctx.dono_scope, parent: pasta.rkey), & &1.id)
+    assert ids == [dentro.id]
+  end
+
+  ## Lixeira
+
+  test "apagar, ver a lixeira e restaurar; cadeia anota os dois atos", ctx do
+    {path, _dados} = arquivo("para a lixeira")
+
+    {:ok, file} = Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path, mime: @mime)
+
+    assert Ybira.apagar(TestRepo, ctx.keys, ctx.outro_scope, "ypy.file.v0", file.rkey) ==
+             {:error, :not_owner}
+
+    {:ok, apagado} = Ybira.apagar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", file.rkey)
+    assert apagado.apagado_em != nil
+
+    # Fora da listagem corrente, presente na lixeira, e not_found para leitura.
+    assert Ybira.list_files(TestRepo, ctx.dono_scope) == []
+    assert [_] = Ybira.list_files(TestRepo, ctx.dono_scope, lixeira: true)
+    assert Ybira.get_file(TestRepo, ctx.dono_scope, file.rkey) == {:error, :not_found}
+
+    {:ok, restaurado} =
+      Ybira.restaurar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", file.rkey)
+
+    assert restaurado.apagado_em == nil
+
+    assert Ybira.restaurar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", file.rkey) ==
+             {:error, :invalid_status}
+
+    tipos = Enum.map(Ypy.Mural.entradas(TestRepo, ctx.tekoa.id), & &1.tipo)
+    assert tipos == ["put", "apagar", "restaurar"]
+  end
+
+  ## Zona
+
+  test "publicar e tirar da praca sao idempotentes e so o dono muda", ctx do
+    {path, _dados} = arquivo("conteudo")
+
+    {:ok, file} = Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path, mime: @mime)
+
+    assert Ybira.publicar(TestRepo, ctx.keys, ctx.outro_scope, "ypy.file.v0", file.rkey) ==
+             {:error, :not_owner}
+
+    {:ok, publicado} =
+      Ybira.publicar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", file.rkey)
+
+    assert publicado.zona == :praca
+
+    # No-op idempotente: a mesma zona devolve o arquivo, sem entrada nova.
+    seq_antes = Ypy.Mural.Store.head(TestRepo, ctx.tekoa.id).seq
+    {:ok, mesmo} = Ybira.publicar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", file.rkey)
+    assert mesmo.zona == :praca
+    assert Ypy.Mural.Store.head(TestRepo, ctx.tekoa.id).seq == seq_antes
+
+    {:ok, de_volta} =
+      Ybira.tirar_da_praca(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", file.rkey)
+
+    assert de_volta.zona == :casa
+  end
+
+  ## Move e rename
+
+  test "mover entre pastas renova o envelope e mantem os bytes", ctx do
+    {path, dados} = arquivo("conteudo")
+    armazenamento = blobs()
+
+    {:ok, origem} = Ybira.criar_pasta(TestRepo, ctx.keys, ctx.dono_scope, "origem")
+    {:ok, destino} = Ybira.criar_pasta(TestRepo, ctx.keys, ctx.dono_scope, "destino")
+
+    {:ok, file} =
+      Ybira.upload(TestRepo, ctx.keys, armazenamento, ctx.dono_scope, path,
+        mime: @mime,
+        folder: origem.rkey
+      )
+
+    cid_antes = file.cid
+    blob_antes = file.blob_cid
+
+    {:ok, movido} = Ybira.mover(TestRepo, ctx.keys, ctx.dono_scope, file.rkey, destino.rkey)
+
+    assert movido.folder_id == destino.id
+    assert movido.cid != cid_antes
+    assert movido.blob_cid == blob_antes
+    assert {:ok, ^dados} = fetch_blob(armazenamento, movido.blob_cid)
+
+    {:ok, solto} = Ybira.mover(TestRepo, ctx.keys, ctx.dono_scope, file.rkey, nil)
+    assert solto.folder_id == nil
+
+    # Cada versao do envelope do arquivo fica arquivada (a pasta tem as suas).
+    versoes = Enum.count(TestRepo.all(Ypy.Ybira.Record), &(&1.collection == "ypy.file.v0"))
+    assert versoes == 3
+  end
+
+  test "renomear renova o envelope e recusa nome fora do lexicon", ctx do
+    {path, _dados} = arquivo("conteudo")
+
+    {:ok, file} =
+      Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path,
+        mime: @mime,
+        nome: "velho.jpg"
+      )
+
+    {:ok, novo} =
+      Ybira.renomear(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", file.rkey, "novo.jpg")
+
+    assert novo.nome == "novo.jpg"
+    assert novo.cid != file.cid
+
+    nome_longo = String.duplicate("a", 101)
+
+    assert {:error, {:payload_invalido, _}} =
+             Ybira.renomear(
+               TestRepo,
+               ctx.keys,
+               ctx.dono_scope,
+               "ypy.file.v0",
+               file.rkey,
+               nome_longo
+             )
+  end
+
+  test "mover para pasta de outro morador e recusado", ctx do
+    {:ok, pasta_alheia} = Ybira.criar_pasta(TestRepo, ctx.keys, ctx.outro_scope, "dele")
+    {path, _dados} = arquivo("conteudo")
+
+    {:ok, file} = Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path, mime: @mime)
+
+    assert Ybira.mover(TestRepo, ctx.keys, ctx.dono_scope, file.rkey, pasta_alheia.rkey) ==
+             {:error, :not_owner}
+  end
+
+  test "get_folder obedece a mesma regra de leitura do arquivo", ctx do
+    {:ok, pasta} = Ybira.criar_pasta(TestRepo, ctx.keys, ctx.dono_scope, "casa minha")
+
+    assert Ybira.get_folder(TestRepo, ctx.outro_scope, pasta.rkey) == {:error, :forbidden}
+    assert {:ok, _} = Ybira.get_folder(TestRepo, ctx.dono_scope, pasta.rkey)
+
+    {:ok, _} = Ybira.publicar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.folder.v0", pasta.rkey)
+    {:ok, _} = Ybira.get_folder(TestRepo, ctx.outro_scope, pasta.rkey)
+  end
+
+  ## Resiliencia do ledger
+
+  test "falha de ledger nao faz falhar a escrita do dado", ctx do
+    quebradas = BrokenKeys.new(dir_temporario("keys-quebradas"))
+    armazenamento = blobs()
+    {path, dados} = arquivo("conteudo commitado")
+
+    assert {:ok, file} =
+             Ybira.upload(TestRepo, quebradas, armazenamento, ctx.dono_scope, path, mime: @mime)
+
+    # O dado ficou: blob, arquivo e cota; a cadeia ficou buraca, de proposito.
+    assert {:ok, ^dados} = fetch_blob(armazenamento, file.blob_cid)
+
+    tekoa = TestRepo.reload!(ctx.tekoa)
+    assert tekoa.storage_used_bytes == byte_size(dados)
+    assert Ypy.Mural.entradas(TestRepo, ctx.tekoa.id) == []
+  end
+
+  test "a cadeia inteira de verbos verifica, do genesis a cabeca", ctx do
+    {path, _dados} = arquivo("conteudo")
+
+    {:ok, file} = Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path, mime: @mime)
+    {:ok, pasta} = Ybira.criar_pasta(TestRepo, ctx.keys, ctx.dono_scope, "pasta")
+    {:ok, _} = Ybira.mover(TestRepo, ctx.keys, ctx.dono_scope, file.rkey, pasta.rkey)
+    {:ok, _} = Ybira.publicar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", file.rkey)
+
+    {:ok, _} =
+      Ybira.renomear(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", file.rkey, "festa.jpg")
+
+    {:ok, _} = Ybira.apagar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", file.rkey)
+    {:ok, _} = Ybira.restaurar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", file.rkey)
+
+    assert Ypy.Mural.verificar_cadeia(TestRepo, ctx.tekoa.id) == :ok
+
+    tipos =
+      Ypy.Mural.entradas(TestRepo, ctx.tekoa.id)
+      |> Enum.map(& &1.tipo)
+
+    assert tipos == ["put", "put", "mover", "publicar", "renomear", "apagar", "restaurar"]
+  end
+
+  test "colecao desconhecida no registro responde erro, sem blob e sem cadeia", ctx do
+    Ypy.Lexicon.Registry.load([])
+
+    on_exit(fn -> recarrega_lexicons() end)
+
+    {path, _dados} = arquivo("conteudo")
+
+    assert {:error, {:envelope_invalido, :unknown_collection}} =
+             Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path, mime: @mime)
+
+    assert Ypy.Mural.entradas(TestRepo, ctx.tekoa.id) == []
+  end
+
+  defp fetch_blob(armazenamento, blob_cid) do
+    armazenamento.__struct__.fetch(armazenamento, Cid.parse(blob_cid))
+  end
+
+  defp recarrega_lexicons do
+    Ypy.Lexicon.Registry.load([Path.join(File.cwd!(), "priv/lexicons")])
+  end
+end

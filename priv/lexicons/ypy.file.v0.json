@@ -1,0 +1,1 @@
+{"defs":{"folderRef":{"type":"string"},"main":{"record":{"properties":{"folder":{"ref":"#folderRef","type":"ref"},"name":{"maxLength":100,"type":"string"},"tag":{"refs":["#textTag","ypy.tag.v0#tagRef"],"type":"union"}},"required":["name"],"type":"object"},"type":"record"},"textTag":{"type":"string"}},"id":"ypy.file.v0"}
