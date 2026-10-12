@@ -58,7 +58,7 @@ defmodule Ypy.Maraca.KeysTest do
   end
 
   test "verify answers false for a malformed public point instead of crashing" do
-    {pub, priv} = Keys.generate(:crypto.strong_rand_bytes(32))
+    {_pub, priv} = Keys.generate(:crypto.strong_rand_bytes(32))
     sig = Secp256k1.sign(priv, "payload")
 
     refute Keys.verify(:crypto.strong_rand_bytes(33), sig, "payload")
