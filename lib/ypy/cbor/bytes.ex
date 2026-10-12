@@ -1,4 +1,4 @@
 defmodule Ypy.Cbor.Bytes do
-  @moduledoc "Explicit wrapper for CBOR byte strings."
+  @moduledoc "Wrapper explicito para byte strings do CBOR."
   defstruct [:data]
 end

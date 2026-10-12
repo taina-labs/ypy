@@ -18,6 +18,12 @@ Tudo que toca o mundo vive em adapters escolhidos pelo produto: persistencia
 (SQLite no box da comunidade), transporte e autenticacao, a superficie HTTP, a
 federacao. O kernel nunca depende de um produto; um produto depende do kernel.
 
+## Status
+
+As primitivas puras de protocolo ja estao em `lib/`: DAG-CBOR, CID, varint,
+base32, base58, secp256k1 e TID. O nucleo de identidade e protocolo esta
+entrando conforme o RFC 006; o resto segue a sequencia de build.
+
 ## Relacao com o Pesque
 
 `zeetech/pesque` e um Personal Data Server para ATProto, tambem em Elixir. O

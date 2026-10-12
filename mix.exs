@@ -1,10 +1,6 @@
 defmodule Ypy.MixProject do
   use Mix.Project
 
-  # Ypy is the Taina kernel: a library, not an application. It ships the pure
-  # protocol shapes, the social core and the schema layer that products (the
-  # Taina box, the hosted platform, future products) build on. It has no
-  # endpoint, no config layer and no release: those belong to the product.
   def project do
     [
       app: :ypy,
@@ -24,9 +20,6 @@ defmodule Ypy.MixProject do
     [preferred_envs: [precommit: :test]]
   end
 
-  # Dependencies are decisions, not defaults (RFC 006). Ecto stands under the
-  # schema layer and bcrypt under credentials; both are runtime. The SQLite
-  # driver, stream_data and ex_doc never reach :prod.
   defp deps do
     [
       {:ecto, "~> 3.14"},

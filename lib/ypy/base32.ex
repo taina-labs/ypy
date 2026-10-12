@@ -1,18 +1,18 @@
 defmodule Ypy.Base32 do
-  @moduledoc "RFC 4648 base32, lowercase, no padding: the multibase `b` encoding."
+  @moduledoc "Base32 do RFC 4648, minuscula, sem padding: a codificacao `b` do multibase."
 
   @alphabet ~c"abcdefghijklmnopqrstuvwxyz234567"
 
   @decode_map Map.new(Enum.with_index(@alphabet))
 
-  @doc "Encodes a binary as lowercase, unpadded base32."
+  @doc "Codifica um binario como base32 minuscula, sem padding."
   def encode(data) when is_binary(data) do
     Base.encode32(data, case: :lower, padding: false)
   end
 
   @doc """
-  Decodes lowercase, unpadded base32. Raises ArgumentError on a character
-  outside the alphabet or on non-zero padding bits.
+  Decodifica base32 minuscula, sem padding. Levanta ArgumentError em caractere
+  fora do alfabeto ou em bits de padding nao zero.
   """
   def decode!(str) when is_binary(str) do
     chars = String.to_charlist(str)

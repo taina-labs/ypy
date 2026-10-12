@@ -1,22 +1,22 @@
 defmodule Ypy.Cbor do
   @moduledoc """
-  Deterministic DAG-CBOR.
+  DAG-CBOR deterministico.
 
-  Data model mapping:
-    nil / true / false        -> simple values
-    integer                   -> major types 0/1 (uint64 range only)
-    float                     -> 64-bit float (0xFB)
-    binary (valid UTF-8)      -> text string
+  Mapeamento do modelo de dados:
+    nil / true / false        -> valores simples
+    integer                   -> major types 0/1 (apenas faixa uint64)
+    float                     -> float de 64 bits (0xFB)
+    binary (UTF-8 valido)     -> text string
     %Ypy.Cbor.Bytes{}         -> byte string
     list                      -> array
-    map (binary keys)         -> map, keys sorted length-first then bytewise
-    %Ypy.Cid{}                -> tag 42 link
+    map (chaves binarias)     -> map, chaves ordenadas por tamanho e depois bytewise
+    %Ypy.Cid{}                -> link da tag 42
   """
 
   alias Ypy.Cbor.Bytes
   alias Ypy.Cid
 
-  @doc "Encodes one term as DAG-CBOR. Raises ArgumentError on anything the data model does not cover."
+  @doc "Codifica um termo como DAG-CBOR. Levanta ArgumentError em qualquer coisa que o modelo de dados nao cubra."
   def encode(term), do: IO.iodata_to_binary(enc(term))
 
   defp enc(nil), do: <<0xF6>>
@@ -61,7 +61,7 @@ defmodule Ypy.Cbor do
 
   defp enc(other), do: raise(ArgumentError, "not encodable as DAG-CBOR: #{inspect(other)}")
 
-  # Shortest-form argument encoding (the "head" of every item).
+  # Forma mais curta do argumento (o "head" de cada item).
   defp head(mt, n) when n >= 0 and n < 24, do: <<mt::3, n::5>>
   defp head(mt, n) when n < 0x100, do: <<mt::3, 24::5, n::8>>
   defp head(mt, n) when n < 0x1_0000, do: <<mt::3, 25::5, n::16>>
@@ -69,10 +69,10 @@ defmodule Ypy.Cbor do
   defp head(mt, n) when n < 0x1_0000_0000_0000_0000, do: <<mt::3, 27::5, n::64>>
   defp head(_mt, n), do: raise(ArgumentError, "out of uint64 range: #{n}")
 
-  @doc "Decodes one item. Returns {term, rest}."
+  @doc "Decodifica um item. Retorna {term, rest}."
   def decode(bin), do: dec(bin)
 
-  @doc "Decodes exactly one item and requires the input to be fully consumed."
+  @doc "Decodifica exatamente um item e exige que a entrada seja consumida por completo."
   def decode!(bin) do
     {term, ""} = dec(bin)
     term
