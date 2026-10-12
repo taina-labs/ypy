@@ -19,12 +19,21 @@ defmodule Ypy.Lexicon.RegistryTest do
 
   setup do
     :persistent_term.erase(Registry)
-    on_exit(fn -> :persistent_term.erase(Registry) end)
-    :ok
+
+    # Os fixtures moram no tmp do sistema e vazariam de teste para teste e de
+    # rodada para rodada (o unique_integer volta ao mesmo valor em cada no
+    # novo): limpar o proprio diretorio em cada saida.
+    base = Path.join(System.tmp_dir!(), "ypy-registry-#{System.unique_integer([:positive])}")
+
+    on_exit(fn ->
+      :persistent_term.erase(Registry)
+      File.rm_rf!(base)
+    end)
+
+    {:ok, base: base}
   end
 
-  test "load/1 installs the index and the reads answer from it" do
-    kernel = Path.join(System.tmp_dir!(), "ypy-registry-#{System.unique_integer([:positive])}")
+  test "load/1 installs the index and the reads answer from it", %{base: kernel} do
     produto = Path.join(kernel, "produto")
 
     File.mkdir_p!(kernel)
@@ -50,8 +59,7 @@ defmodule Ypy.Lexicon.RegistryTest do
     assert Registry.knows?("falta.v0") == false
   end
 
-  test "a broken lexicon in the product dir loads the rest and reports" do
-    dir = Path.join(System.tmp_dir!(), "ypy-registry-#{System.unique_integer([:positive])}")
+  test "a broken lexicon in the product dir loads the rest and reports", %{base: dir} do
     File.mkdir_p!(dir)
 
     write(dir, @file_lexicon)
