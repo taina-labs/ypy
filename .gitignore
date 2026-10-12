@@ -8,3 +8,4 @@ erl_crash.dump
 ypy-*.tar
 /config/*.secret.exs
 .elixir_ls/
+/tmp/
