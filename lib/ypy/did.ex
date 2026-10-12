@@ -44,7 +44,7 @@ defmodule Ypy.Did do
   """
   def document("did:web:" <> _ = did, public_key_multibase)
       when is_binary(public_key_multibase) do
-    method_id = did <> "#atproto"
+    method_id = did <> "#tekoa"
 
     %{
       "@context" => [

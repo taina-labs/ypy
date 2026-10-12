@@ -53,10 +53,10 @@ defmodule Ypy.DidTest do
                "https://w3id.org/security/suites/secp256k1-2019/v1"
              ],
              "id" => "did:web:tekoa.example.org",
-             "authentication" => ["did:web:tekoa.example.org#atproto"],
+             "authentication" => ["did:web:tekoa.example.org#tekoa"],
              "verificationMethod" => [
                %{
-                 "id" => "did:web:tekoa.example.org#atproto",
+                 "id" => "did:web:tekoa.example.org#tekoa",
                  "type" => "Multikey",
                  "controller" => "did:web:tekoa.example.org",
                  "publicKeyMultibase" => multibase
