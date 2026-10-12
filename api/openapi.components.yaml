@@ -208,9 +208,6 @@ components:
         folder:
           type: string
           description: O rkey da pasta pai, quando ha.
-        tag:
-          oneOf:
-            - type: string
     FolderRecord:
       type: object
       description: O payload do record ypy.folder.v0 (priv/lexicons/ypy.folder.v0.json).

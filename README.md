@@ -24,6 +24,39 @@ As primitivas puras de protocolo ja estao em `lib/`: DAG-CBOR, CID, varint,
 base32, base58, secp256k1 e TID. O nucleo de identidade e protocolo esta
 entrando conforme o RFC 006; o resto segue a sequencia de build.
 
+## Como consumir
+
+Para o mantenedor de um produto (o box do Taina, a plataforma hospedada),
+quatro passos, na ordem (RFC_006 secoes 6, 7 e 10):
+
+1. **A dependencia.** No `mix.exs` do produto: `{:ypy, "~> 0.1"}`. O Ypy nao
+   importa nada de produto, nao le config de produto e nao nomeia modulo de
+   produto.
+2. **As migracoes.** `mix ypy.install` copia as migracoes do kernel para
+   `priv/repo/migrations` do produto, com a versao preservada
+   (`--migrations-path` troca o caminho). Rodar de novo substitui a versao,
+   nunca duplica. Quem roda as migracoes e o `mix ecto.migrate` do produto.
+3. **Os lexicons no boot.** O produto carrega o indice uma vez, com o
+   diretorio do kernel primeiro e o dele depois (um lexicon do produto
+   sobrescreve um do kernel de mesmo id):
+
+   ```elixir
+   {entries, problems} =
+     Ypy.Lexicon.Registry.load([
+       Application.app_dir(:ypy, "priv/lexicons"),
+       "priv/lexicons"
+     ])
+   ```
+
+4. **O Repo e do produto.** O kernel nao define `Ypy.Repo` nem le config
+   global: toda funcao de contexto recebe o repo como primeiro argumento. Os
+   adapters de blob e de chave o produto escolhe (`Ypy.BlobStore.Disk` e
+   `Ypy.KeyStore.Files` sao os do kernel):
+
+   ```elixir
+   Ypy.Ybira.upload(Taina.Repo, keys, blobs, scope, tmp_path, mime: mime)
+   ```
+
 ## Relacao com o Pesque
 
 `zeetech/pesque` e um Personal Data Server para ATProto, tambem em Elixir. O

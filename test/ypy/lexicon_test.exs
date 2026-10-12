@@ -8,8 +8,7 @@ defmodule Ypy.LexiconTest do
     "required" => ["name"],
     "properties" => %{
       "name" => %{"type" => "string", "maxLength" => 100},
-      "folder" => %{"type" => "ref", "ref" => "#folderRef"},
-      "tag" => %{"type" => "union", "refs" => ["#textTag", "ypy.tag.v0#tagRef"]}
+      "folder" => %{"type" => "ref", "ref" => "#folderRef"}
     }
   }
 
@@ -17,13 +16,30 @@ defmodule Ypy.LexiconTest do
     "id" => "ypy.file.v0",
     "defs" => %{
       "main" => %{"type" => "record", "record" => @file_record},
-      "folderRef" => %{"type" => "string"},
+      "folderRef" => %{"type" => "string"}
+    }
+  }
+
+  # O jogo de fixtures da union: um lexicon com o campo de union e outro com
+  # o def que a variante de outro lexicon nomeia.
+  @post_lexicon %{
+    "id" => "x.post.v0",
+    "defs" => %{
+      "main" => %{
+        "type" => "record",
+        "record" => %{
+          "type" => "object",
+          "properties" => %{
+            "tag" => %{"type" => "union", "refs" => ["#textTag", "x.meta.v0#tagRef"]}
+          }
+        }
+      },
       "textTag" => %{"type" => "string"}
     }
   }
 
-  @tag_lexicon %{
-    "id" => "ypy.tag.v0",
+  @meta_lexicon %{
+    "id" => "x.meta.v0",
     "defs" => %{
       "main" => %{
         "type" => "record",
@@ -42,14 +58,14 @@ defmodule Ypy.LexiconTest do
       File.mkdir_p!(produto)
 
       write_lexicon(kernel, @file_lexicon)
-      write_lexicon(kernel, @tag_lexicon)
+      write_lexicon(kernel, @post_lexicon)
 
       substituto = put_in(@file_lexicon["defs"]["main"]["record"]["required"], ["name", "zona"])
       write_lexicon(produto, substituto)
 
       {index, problems} = Lexicon.load([kernel, produto])
 
-      assert Map.keys(index) == ["ypy.file.v0", "ypy.tag.v0"]
+      assert Map.keys(index) == ["x.post.v0", "ypy.file.v0"]
       assert index["ypy.file.v0"]["defs"]["main"]["record"]["required"] == ["name", "zona"]
       assert problems == []
     end
@@ -71,16 +87,18 @@ defmodule Ypy.LexiconTest do
 
   describe "record_schema/2" do
     test "follows local and cross-lexicon refs, and resolves union members" do
-      index = index_of([@file_lexicon, @tag_lexicon])
+      index = index_of([@file_lexicon, @post_lexicon, @meta_lexicon])
+
       schema = Lexicon.record_schema("ypy.file.v0", index)
 
       assert schema["properties"]["folder"] == %{"type" => "string"}
       assert schema["properties"]["name"] == %{"type" => "string", "maxLength" => 100}
 
-      union = schema["properties"]["tag"]
-      assert union["defs"] == @file_lexicon["defs"]
+      union = Lexicon.record_schema("x.post.v0", index)["properties"]["tag"]
+
+      assert union["defs"] == @post_lexicon["defs"]
       assert union["variants"]["#textTag"] == %{"type" => "string"}
-      assert union["variants"]["ypy.tag.v0#tagRef"] == %{"type" => "integer"}
+      assert union["variants"]["x.meta.v0#tagRef"] == %{"type" => "integer"}
     end
 
     test "a ref naming a missing lexicon stays as it is" do
