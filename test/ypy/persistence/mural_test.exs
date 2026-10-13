@@ -5,6 +5,7 @@ defmodule Ypy.Mural.PersistenceTest do
   alias Ypy.Mural.Store
   alias Ypy.RacyRepo
 
+  import Ecto.Query
   import Ypy.Factories
 
   setup do
@@ -35,44 +36,51 @@ defmodule Ypy.Mural.PersistenceTest do
     assert Mural.verificar_cadeia(TestRepo, tekoa.id) == :ok
   end
 
-  test "conflito de sequencia sob escritor concorrente: o store recomeca da cabeca e vence", %{
+  test "conflito de sequencia sob escritor concorrente: a transacao inteira recomeca e vence", %{
     tekoa: tekoa,
     keys: keys
   } do
+    {:ok, dono} = novo_ava(TestRepo, tekoa)
     {:ok, primeira} = Store.append(TestRepo, keys, tekoa.id, "put", %{"rkey" => "rk1"})
 
     # O proximo escritor encontra a seq tomada por um append concorrente
-    # verdadeiro e precisa recomecar: a cadeia final fica valida.
+    # verdadeiro: a transacao inteira (dado mais cadeia) recomeca da cabeca.
     RacyRepo.arm(keys, tekoa.id, "concessao", %{"rkey" => "rival"})
 
-    {:ok, entrada} =
-      Store.append(RacyRepo, keys, tekoa.id, "publicar", %{"rkey" => "rk2"})
+    {:ok, _pasta} = escrever_com_cadeia(RacyRepo, keys, tekoa, dono)
 
     RacyRepo.disarm()
 
-    assert entrada.seq == 3
-    assert entrada.prev != primeira.cid
+    # O dado rodou duas vezes porque a primeira transacao rolagou inteira
+    # com o append que conflitou; o que ficou e o dado da segunda, com a
+    # entrada encadeada.
+    assert Process.get(:escritas) == 2
+    assert dado_contado(tekoa) == 1
 
     assert Mural.verificar_cadeia(TestRepo, tekoa.id) == :ok
-    assert Store.head(TestRepo, tekoa.id).seq == 3
+    assert Store.head(TestRepo, tekoa.id).seq == 2
+    assert Mural.entrada(TestRepo, tekoa.id, 2).prev == primeira.cid
   end
 
-  test "conflito em toda tentativa: tres tentativas e :chain_conflict", %{
+  test "conflito em toda tentativa: tres transacoes inteiras e :chain_conflict", %{
     tekoa: tekoa,
     keys: keys
   } do
+    {:ok, dono} = novo_ava(TestRepo, tekoa)
     {:ok, _} = Store.append(TestRepo, keys, tekoa.id, "put", %{"rkey" => "rk1"})
 
     RacyRepo.arm_always(keys, tekoa.id, "rival", %{"rkey" => "rival"})
 
-    assert Store.append(RacyRepo, keys, tekoa.id, "publicar", %{"rkey" => "rk2"}) ==
-             {:error, :chain_conflict}
+    assert escrever_com_cadeia(RacyRepo, keys, tekoa, dono) == {:error, :chain_conflict}
 
     RacyRepo.disarm()
 
-    # Cada tentativa deixou uma entrada do rival; a cadeia, porem, fica valida.
+    # Tres transacoes inteiras rodaram e nenhuma ficou: sem dado, sem entrada.
+    assert Process.get(:escritas) == 3
+    assert dado_contado(tekoa) == 0
+
     assert Mural.verificar_cadeia(TestRepo, tekoa.id) == :ok
-    assert length(Mural.entradas(TestRepo, tekoa.id)) == 4
+    assert Store.head(TestRepo, tekoa.id).seq == 1
   end
 
   test "sem chave para assinar, o append responde o erro do KeyStore", %{tekoa: tekoa} do
@@ -113,6 +121,29 @@ defmodule Ypy.Mural.PersistenceTest do
   defp tekoa_pub(repo, tekoa_id) do
     %Ypy.Maraca.TekoaKey{pub: pub} = Ypy.Maraca.Store.chave_ativa(repo, tekoa_id)
     pub
+  end
+
+  # A escrita de dado que corre com a cadeia: uma pasta, contada cada vez que
+  # a transacao a executa (o retry reexecuta a transacao inteira).
+  defp escrever_com_cadeia(repo, keys, tekoa, dono) do
+    Store.commit(repo, keys, tekoa.id, "publicar", %{"rkey" => "rk2"}, fn ->
+      Process.put(:escritas, Process.get(:escritas, 0) + 1)
+
+      Store.insert(
+        repo,
+        Ypy.Ybira.Folder.changeset(%Ypy.Ybira.Folder{}, %{
+          tekoa_id: tekoa.id,
+          dono_id: dono.id,
+          rkey: "rrrrrrrrrrrrr",
+          cid: "cid-do-dado",
+          nome: "pasta do dado"
+        })
+      )
+    end)
+  end
+
+  defp dado_contado(tekoa) do
+    TestRepo.aggregate(from(f in Ypy.Ybira.Folder, where: f.tekoa_id == ^tekoa.id), :count)
   end
 
   defp to_entry(%Ypy.Mural.Entry{} = row) do

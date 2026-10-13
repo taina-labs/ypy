@@ -1,13 +1,13 @@
 defmodule Ypy.RacyRepo do
   @moduledoc """
   O repo que simula o escritor concorrente do mural (RFC_006 secao 8): o
-  teste arma um `Ypy.Mural.Store.append` verdadeiro (com `Ypy.TestRepo` e os
-  keys dados) e a proxima insercao do store sob teste encontra a sequencia
-  tomada, conflita no indice unico e precisa recomecar da cabeca.
+  teste arma o conflito e a proxima insercao da cadeia encontra a sequencia
+  tomada por um append concorrente verdadeiro, conflita no indice unico e a
+  transacao inteira (dado mais append) precisa recomecar.
 
   Deterministico: nada de sono nem corrida de relogio. `arm/4` conflita uma
-  vez e `arm_always/4` conflita em toda insercao (para esgotar as tres
-  tentativas e ver {:error, :chain_conflict}).
+  vez e `arm_always/4` conflita em toda insercao da cadeia (para esgotar as
+  tres tentativas e ver {:error, :chain_conflict}).
   """
 
   @armed :racy_repo_armed
@@ -25,7 +25,11 @@ defmodule Ypy.RacyRepo do
   def one(query, opts \\ []), do: Ypy.TestRepo.one(query, opts)
   def all(query, opts \\ []), do: Ypy.TestRepo.all(query, opts)
 
-  def insert(changeset, opts \\ []) do
+  def insert(changeset, opts \\ [])
+
+  # So a insercao da cadeia e armada: o dado da transacao sob teste passa
+  # reto, e o rival toma a sequencia entre a leitura da cabeca e o insert.
+  def insert(%Ecto.Changeset{data: %Ypy.Mural.Entry{}} = changeset, opts) do
     case Process.get(@armed) do
       nil ->
         Ypy.TestRepo.insert(changeset, opts)
@@ -37,8 +41,11 @@ defmodule Ypy.RacyRepo do
     end
   end
 
+  def insert(changeset, opts), do: Ypy.TestRepo.insert(changeset, opts)
+
   def update(changeset, opts \\ []), do: Ypy.TestRepo.update(changeset, opts)
   def transaction(fun, opts \\ []), do: Ypy.TestRepo.transaction(fun, opts)
+  def rollback(value), do: Ypy.TestRepo.rollback(value)
   def update_all(query, updates), do: Ypy.TestRepo.update_all(query, updates)
 
   def aggregate(query, aggregate, field \\ nil, opts \\ []) do

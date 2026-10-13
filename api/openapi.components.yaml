@@ -199,8 +199,8 @@ components:
           format: date-time
     FileRecord:
       type: object
-      description: O payload do record ypy.file.v0 (priv/lexicons/ypy.file.v0.json).
-      required: [name]
+      description: O payload do record ypy.file.v0 (priv/lexicons/ypy.file.v0.json), auto-descritivo (RFC_006 secao 6).
+      required: [name, mime_type, size_bytes, blob]
       properties:
         name:
           type: string
@@ -208,6 +208,17 @@ components:
         folder:
           type: string
           description: O rkey da pasta pai, quando ha.
+        mime_type:
+          type: string
+          description: O tipo MIME dos bytes, da allowlist do upload.
+        size_bytes:
+          type: integer
+          format: int64
+          description: O tamanho dos bytes, em octetos.
+        blob:
+          type: string
+          format: cid
+          description: O CID dos bytes no armazenamento.
     FolderRecord:
       type: object
       description: O payload do record ypy.folder.v0 (priv/lexicons/ypy.folder.v0.json).

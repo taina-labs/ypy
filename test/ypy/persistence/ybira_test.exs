@@ -49,6 +49,17 @@ defmodule Ypy.Ybira.PersistenceTest do
     cadeia = Ypy.Mural.entradas(TestRepo, ctx.tekoa.id)
     assert Enum.map(cadeia, & &1.tipo) == ["put"]
     assert Ypy.Mural.verificar_cadeia(TestRepo, ctx.tekoa.id) == :ok
+
+    # O envelope e auto-descritivo (RFC_006 secao 6): a cadeia reconstrui o
+    # arquivo dele. Sem pasta, sem chave "folder".
+    record = TestRepo.get_by!(Ypy.Ybira.Record, tekoa_id: ctx.tekoa.id, rkey: file.rkey)
+
+    assert record.record["payload"] == %{
+             "name" => "foto.jpg",
+             "mime_type" => @mime,
+             "size_bytes" => byte_size(dados),
+             "blob" => file.blob_cid
+           }
   end
 
   test "upload sem mime detectado e erro", ctx do
@@ -310,6 +321,17 @@ defmodule Ypy.Ybira.PersistenceTest do
     # Cada versao do envelope do arquivo fica arquivada (a pasta tem as suas).
     versoes = Enum.count(TestRepo.all(Ypy.Ybira.Record), &(&1.collection == "ypy.file.v0"))
     assert versoes == 3
+
+    # A ultima versao descreve o arquivo inteiro: mime, tamanho e blob
+    # viajam no payload; solto, sem a chave da pasta.
+    ultima = Enum.max_by(TestRepo.all(Ypy.Ybira.Record), & &1.id)
+
+    assert ultima.record["payload"] == %{
+             "name" => "arquivo",
+             "mime_type" => @mime,
+             "size_bytes" => byte_size(dados),
+             "blob" => blob_antes
+           }
   end
 
   test "renomear renova o envelope e recusa nome fora do lexicon", ctx do
@@ -360,22 +382,41 @@ defmodule Ypy.Ybira.PersistenceTest do
     {:ok, _} = Ybira.get_folder(TestRepo, ctx.outro_scope, pasta.rkey)
   end
 
-  ## Resiliencia do ledger
+  ## Atomicidade do ledger
 
-  test "falha de ledger nao faz falhar a escrita do dado", ctx do
+  test "falha de cadeia desfaz a escrita do dado", ctx do
     quebradas = BrokenKeys.new(dir_temporario("keys-quebradas"))
     armazenamento = blobs()
     {path, dados} = arquivo("conteudo commitado")
 
-    assert {:ok, file} =
+    assert {:error, :not_found} =
              Ybira.upload(TestRepo, quebradas, armazenamento, ctx.dono_scope, path, mime: @mime)
 
-    # O dado ficou: blob, arquivo e cota; a cadeia ficou buraca, de proposito.
-    assert {:ok, ^dados} = fetch_blob(armazenamento, file.blob_cid)
+    # Nada ficou: sem arquivo, sem cota, sem entrada, sem bytes. Ou a cadeia
+    # fica com o dado, ou o dado volta.
+    assert TestRepo.aggregate(Ypy.Ybira.File, :count) == 0
 
     tekoa = TestRepo.reload!(ctx.tekoa)
-    assert tekoa.storage_used_bytes == byte_size(dados)
+    assert tekoa.storage_used_bytes == 0
     assert Ypy.Mural.entradas(TestRepo, ctx.tekoa.id) == []
+
+    cid = Cid.from_data(dados, Cid.raw())
+    assert fetch_blob(armazenamento, Cid.to_string(cid)) == {:error, :not_found}
+  end
+
+  test "a escrita que commitou tem a entrada na cadeia", ctx do
+    {path, dados} = arquivo("conteudo commitado")
+
+    assert {:ok, file} =
+             Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path, mime: @mime)
+
+    cadeia = Ypy.Mural.entradas(TestRepo, ctx.tekoa.id)
+
+    assert [entrada] = cadeia
+    assert entrada.tipo == "put"
+    assert entrada.payload["rkey"] == file.rkey
+    assert Ypy.Mural.verificar_cadeia(TestRepo, ctx.tekoa.id) == :ok
+    assert byte_size(dados) == file.tamanho
   end
 
   test "a cadeia inteira de verbos verifica, do genesis a cabeca", ctx do

@@ -1,6 +1,7 @@
 defmodule Ypy.Maraca.PersistenceTest do
   use Ypy.PersistenceCase, async: false
 
+  alias Ypy.BrokenKeys
   alias Ypy.Maraca
   alias Ypy.Scope
   alias Ypy.Ybira
@@ -170,17 +171,19 @@ defmodule Ypy.Maraca.PersistenceTest do
 
   test "mudar papel e de zelador e protege a ultima zeladoria", ctx do
     # So zelador troca papel.
-    assert Maraca.mudar_papel(TestRepo, ctx.dono_scope, ctx.outro, :zelador) ==
+    assert Maraca.mudar_papel(TestRepo, ctx.keys, ctx.dono_scope, ctx.outro, :zelador) ==
              {:error, :not_authorized}
 
-    {:ok, promovido} = Maraca.mudar_papel(TestRepo, ctx.zelador_scope, ctx.outro, :zelador)
+    {:ok, promovido} =
+      Maraca.mudar_papel(TestRepo, ctx.keys, ctx.zelador_scope, ctx.outro, :zelador)
+
     assert promovido.papel == :zelador
     assert Ypy.Maraca.Store.count_zeladores(TestRepo, ctx.tekoa.id) == 2
 
     # Dois zeladores: pode destituir um, nao o outro.
-    {:ok, _} = Maraca.mudar_papel(TestRepo, ctx.zelador_scope, ctx.outro, :morador)
+    {:ok, _} = Maraca.mudar_papel(TestRepo, ctx.keys, ctx.zelador_scope, ctx.outro, :morador)
 
-    assert Maraca.mudar_papel(TestRepo, ctx.zelador_scope, ctx.zelador, :morador) ==
+    assert Maraca.mudar_papel(TestRepo, ctx.keys, ctx.zelador_scope, ctx.zelador, :morador) ==
              {:error, :last_zelador}
 
     # Papel desconhecido nao passa no guard (o atomo nasce em runtime para o
@@ -188,8 +191,36 @@ defmodule Ypy.Maraca.PersistenceTest do
     papel_invalido = String.to_atom("admin")
 
     assert_raise FunctionClauseError, fn ->
-      Maraca.mudar_papel(TestRepo, ctx.zelador_scope, ctx.outro, papel_invalido)
+      Maraca.mudar_papel(TestRepo, ctx.keys, ctx.zelador_scope, ctx.outro, papel_invalido)
     end
+  end
+
+  test "mudar papel e um ato na cadeia, do mesmo commit da mudanca", ctx do
+    {:ok, promovido} =
+      Maraca.mudar_papel(TestRepo, ctx.keys, ctx.zelador_scope, ctx.outro, :zelador)
+
+    assert promovido.papel == :zelador
+
+    entrada = Ypy.Mural.entrada(TestRepo, ctx.tekoa.id, 1)
+
+    assert entrada.tipo == "mudar_papel"
+
+    assert entrada.payload == %{
+             "tipo" => "mudar_papel",
+             "actor" => ctx.zelador.public_id,
+             "ava" => ctx.outro.public_id,
+             "papel" => "zelador"
+           }
+
+    assert Ypy.Mural.verificar_cadeia(TestRepo, ctx.tekoa.id) == :ok
+
+    # A cadeia falhou, o papel nao mudou: o ato e um so fato.
+    quebradas = BrokenKeys.new(dir_temporario("keys-quebradas-papel"))
+
+    assert Maraca.mudar_papel(TestRepo, quebradas, ctx.zelador_scope, ctx.outro, :morador) ==
+             {:error, :not_found}
+
+    assert TestRepo.reload!(ctx.outro).papel == :zelador
   end
 
   test "ava pendente e aceite de convite, invariantes do kernel", ctx do

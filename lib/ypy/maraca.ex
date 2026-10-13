@@ -4,9 +4,9 @@ defmodule Ypy.Maraca do
   papel.
 
   Os fluxos de autenticacao (convite, login, reset) ficam no produto (RFC_006
-  D10); daqui sai so o que muda fato social. Concessao e revogacao anexam
-  entrada na cadeia (RFC_006 secao 8) e sao melhor-esforco: a falha de ledger
-  nao desfaz o dado.
+  D10); daqui sai so o que muda fato social. Concessao, revogacao e troca de
+  papel anexam entrada na cadeia (RFC_006 secao 8) no mesmo commit do dado:
+  ou o fato social fica com a sua entrada, ou nada fica.
   """
 
   alias Ypy.{KeyStore, Scope}
@@ -31,27 +31,32 @@ defmodule Ypy.Maraca do
          :ok <- nao_e_leitor_proprio(scope, leitor),
          {:ok, row} <- Ybira.recurso(repo, scope.tekoa.id, tipo, rkey),
          :ok <- dono_guard(row, scope),
-         :ok <- nao_legivel(repo, scope, leitor, tipo, rkey),
-         {:ok, concessao} <-
-           Store.insert(
-             repo,
-             Concessao.changeset(%Concessao{}, %{
-               tekoa_id: scope.tekoa.id,
-               leitor_id: leitor.id,
-               dono_id: scope.ava.id,
-               tipo: tipo,
-               recurso: rkey,
-               concedida_em: agora()
-             })
-           ) do
-      entry(repo, keys, scope, "concessao", %{
-        "actor" => scope.ava.public_id,
-        "leitor" => leitor.public_id,
-        "collection" => tipo,
-        "recurso" => rkey
-      })
-
-      {:ok, concessao}
+         :ok <- nao_legivel(repo, scope, leitor, tipo, rkey) do
+      MuralStore.commit(
+        repo,
+        keys,
+        scope.tekoa.id,
+        "concessao",
+        %{
+          "actor" => scope.ava.public_id,
+          "leitor" => leitor.public_id,
+          "collection" => tipo,
+          "recurso" => rkey
+        },
+        fn ->
+          Store.insert(
+            repo,
+            Concessao.changeset(%Concessao{}, %{
+              tekoa_id: scope.tekoa.id,
+              leitor_id: leitor.id,
+              dono_id: scope.ava.id,
+              tipo: tipo,
+              recurso: rkey,
+              concedida_em: agora()
+            })
+          )
+        end
+      )
     end
   end
 
@@ -61,16 +66,22 @@ defmodule Ypy.Maraca do
   def revogar(repo, keys, %Scope{} = scope, %Concessao{} = concessao) do
     with :ok <- mesma_tekoa_row(scope, concessao.tekoa_id),
          :ok <- if(concessao.dono_id == scope.ava.id, do: :ok, else: {:error, :not_authorized}),
-         :ok <- if(concessao.revogada_em, do: {:error, :invalid_status}, else: :ok),
-         {:ok, concessao} <- Store.update(repo, Concessao.revoke_changeset(concessao, agora())) do
-      entry(repo, keys, scope, "revogar", %{
-        "actor" => scope.ava.public_id,
-        "collection" => concessao.tipo,
-        "recurso" => concessao.recurso,
-        "leitor" => leitor_public_id(repo, scope.tekoa.id, concessao.leitor_id)
-      })
-
-      {:ok, concessao}
+         :ok <- if(concessao.revogada_em, do: {:error, :invalid_status}, else: :ok) do
+      MuralStore.commit(
+        repo,
+        keys,
+        scope.tekoa.id,
+        "revogar",
+        %{
+          "actor" => scope.ava.public_id,
+          "collection" => concessao.tipo,
+          "recurso" => concessao.recurso,
+          "leitor" => leitor_public_id(repo, scope.tekoa.id, concessao.leitor_id)
+        },
+        fn ->
+          Store.update(repo, Concessao.revoke_changeset(concessao, agora()))
+        end
+      )
     end
   end
 
@@ -135,18 +146,33 @@ defmodule Ypy.Maraca do
   ## Papel
 
   @doc """
-  Troca o papel de um morador. Quem troca e zelador, e a ultima zeladoria
-  fica: destituir quem a segura sozinho responde {:error, :last_zelador}
-  (RFC_003: o cuidado da maquina se distribui, nao se esvazia).
+  Troca o papel de um morador e anexa o ato na cadeia (RFC_006 secao 8): a
+  entrada e um fato assinado do mesmo commit que a mudanca. Quem troca e
+  zelador, e a ultima zeladoria fica: destituir quem a segura sozinho
+  responde {:error, :last_zelador} (RFC_003: o cuidado da maquina se
+  distribui, nao se esvazia).
   """
-  @spec mudar_papel(Ecto.Repo.t(), Scope.t(), Ava.t(), :zelador | :morador) ::
+  @spec mudar_papel(Ecto.Repo.t(), KeyStore.t(), Scope.t(), Ava.t(), :zelador | :morador) ::
           {:ok, Ava.t()} | {:error, term()}
-  def mudar_papel(repo, %Scope{} = scope, %Ava{id: ava_id}, papel)
+  def mudar_papel(repo, keys, %Scope{} = scope, %Ava{id: ava_id}, papel)
       when papel in [:zelador, :morador] do
     with :ok <- zelador_guard(scope),
          {:ok, ava} <- ava_atual(repo, scope.tekoa.id, ava_id),
          :ok <- ultimo_zelador_guard(repo, scope, ava, papel) do
-      Store.update(repo, Ava.papel_changeset(ava, papel))
+      MuralStore.commit(
+        repo,
+        keys,
+        scope.tekoa.id,
+        "mudar_papel",
+        %{
+          "actor" => scope.ava.public_id,
+          "ava" => ava.public_id,
+          "papel" => Atom.to_string(papel)
+        },
+        fn ->
+          Store.update(repo, Ava.papel_changeset(ava, papel))
+        end
+      )
     end
   end
 
@@ -231,29 +257,34 @@ defmodule Ypy.Maraca do
   defp conceder_por_pedido(repo, keys, scope, pedido) do
     leitor = Store.get_ava(repo, scope.tekoa.id, pedido.pedinte_id)
 
-    with {:ok, leitor} <- if(leitor, do: {:ok, leitor}, else: {:error, :not_found}),
-         {:ok, concessao} <-
-           Store.insert(
-             repo,
-             Concessao.changeset(%Concessao{}, %{
-               tekoa_id: scope.tekoa.id,
-               leitor_id: leitor.id,
-               dono_id: scope.ava.id,
-               tipo: pedido.tipo,
-               recurso: pedido.recurso,
-               concedida_em: agora()
-             })
-           ) do
-      entry(repo, keys, scope, "concessao", %{
-        "actor" => scope.ava.public_id,
-        "leitor" => leitor.public_id,
-        "collection" => pedido.tipo,
-        "recurso" => pedido.recurso,
-        "via" => "pedido",
-        "pedido" => pedido.public_id
-      })
-
-      {:ok, concessao}
+    with {:ok, leitor} <- if(leitor, do: {:ok, leitor}, else: {:error, :not_found}) do
+      MuralStore.commit(
+        repo,
+        keys,
+        scope.tekoa.id,
+        "concessao",
+        %{
+          "actor" => scope.ava.public_id,
+          "leitor" => leitor.public_id,
+          "collection" => pedido.tipo,
+          "recurso" => pedido.recurso,
+          "via" => "pedido",
+          "pedido" => pedido.public_id
+        },
+        fn ->
+          Store.insert(
+            repo,
+            Concessao.changeset(%Concessao{}, %{
+              tekoa_id: scope.tekoa.id,
+              leitor_id: leitor.id,
+              dono_id: scope.ava.id,
+              tipo: pedido.tipo,
+              recurso: pedido.recurso,
+              concedida_em: agora()
+            })
+          )
+        end
+      )
     end
   end
 
@@ -265,9 +296,4 @@ defmodule Ypy.Maraca do
   end
 
   defp agora, do: DateTime.utc_now() |> DateTime.truncate(:second)
-
-  defp entry(repo, keys, scope, tipo, payload) do
-    _ = MuralStore.append(repo, keys, scope.tekoa.id, tipo, payload)
-    :ok
-  end
 end

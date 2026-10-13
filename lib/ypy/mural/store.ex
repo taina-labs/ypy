@@ -1,10 +1,13 @@
 defmodule Ypy.Mural.Store do
   @moduledoc """
   O append da cadeia unica (RFC_006 secao 8): le a cabeca, sela a entrada,
-  assina pela `Ypy.KeyStore`, insere. A serializacao e do banco (indice unico
-  em `tekoa_id` + `seq`); se outro escritor tomou a sequencia, recomeca da
-  cabeca, ate tres tentativas, e ai responde `{:error, :chain_conflict}`.
-  Nenhum processo por repo.
+  assina pela `Ypy.KeyStore`, insere.
+
+  O append acontece na mesma transacao da escrita do dado (`commit/6`): ou a
+  entrada e o dado ficam juntos, ou nada fica. A serializacao e do banco
+  (indice unico em `tekoa_id` + `seq`); o conflito de sequencia reexecuta a
+  transacao inteira, ate tres tentativas, e ai responde
+  `{:error, :chain_conflict}`. Nenhum processo por repo.
   """
 
   @max_attempts 3
@@ -15,31 +18,14 @@ defmodule Ypy.Mural.Store do
   @doc """
   Anexa `payload` (mapa de chaves de string) como entrada do `tipo` dado e
   devolve a linha inserida. O `tipo` entra no payload assinado e na coluna de
-  projecao.
+  projecao. Uma so tentativa: o conflito de sequencia em transacao e da
+  transacao inteira recomecar, pelo `commit/6`.
   """
   @spec append(Ecto.Repo.t(), KeyStore.t(), integer(), String.t(), map()) ::
           {:ok, Entry.t()} | {:error, :chain_conflict | term()}
   def append(repo, keys, tekoa_id, tipo, payload)
       when is_binary(tipo) and is_map(payload) and is_integer(tekoa_id) do
     payload = Map.put(payload, "tipo", tipo)
-    insert(repo, keys, tekoa_id, tipo, payload, @max_attempts)
-  end
-
-  @doc "A cabeca da cadeia (nil no genesis)."
-  def head(repo, tekoa_id), do: repo.one(Queries.head(tekoa_id))
-
-  @doc "A cadeia inteira, do genesis em diante."
-  def entradas(repo, tekoa_id), do: repo.all(Queries.entradas(tekoa_id))
-
-  @doc "As entradas de um tipo (a projecao do mural)."
-  def por_tipo(repo, tekoa_id, tipo), do: repo.all(Queries.por_tipo(tekoa_id, tipo))
-
-  @doc "Insere pelo changeset dado (uso do produto e dos testes)."
-  def insert(repo, changeset), do: repo.insert(changeset)
-
-  defp insert(_repo, _keys, _tekoa_id, _tipo, _payload, 0), do: {:error, :chain_conflict}
-
-  defp insert(repo, keys, tekoa_id, tipo, payload, attempts) do
     head = head(repo, tekoa_id)
     seq = if head, do: head.seq + 1, else: 1
     prev = if head, do: Cid.parse(head.cid), else: nil
@@ -56,17 +42,63 @@ defmodule Ypy.Mural.Store do
             {:ok, row}
 
           {:error, %Ecto.Changeset{errors: errors}} = error ->
-            if conflict?(errors) do
-              insert(repo, keys, tekoa_id, tipo, payload, attempts - 1)
-            else
-              error
-            end
+            if conflict?(errors), do: {:error, :chain_conflict}, else: error
         end
 
       {:error, reason} ->
         {:error, reason}
     end
   end
+
+  @doc """
+  Executa a escrita do dado e o append da cadeia na MESMA transacao
+  (RFC_006 secao 8): ou a entrada fica com o dado, ou o dado volta. `data_fn`
+  roda dentro da transacao e devolve `{:ok, valor}` ou `{:error, motivo}`;
+  qualquer falha desfaz a transacao inteira. O conflito de sequencia em
+  `(tekoa_id, seq)` reexecuta a transacao inteira (dado e cadeia), ate tres
+  tentativas, e ai responde `{:error, :chain_conflict}`.
+  """
+  @spec commit(Ecto.Repo.t(), KeyStore.t(), integer(), String.t(), map(), (-> {:ok, term()}
+                                                                              | {:error, term()})) ::
+          {:ok, term()} | {:error, :chain_conflict | term()}
+  def commit(repo, keys, tekoa_id, tipo, payload, data_fn) do
+    commit(repo, keys, tekoa_id, tipo, payload, data_fn, @max_attempts)
+  end
+
+  defp commit(_repo, _keys, _tekoa_id, _tipo, _payload, _data_fn, 0),
+    do: {:error, :chain_conflict}
+
+  defp commit(repo, keys, tekoa_id, tipo, payload, data_fn, attempts) do
+    case repo.transaction(fn ->
+           with {:ok, value} <- data_fn.(),
+                {:ok, _entry} <- append(repo, keys, tekoa_id, tipo, payload) do
+             value
+           else
+             {:error, reason} -> repo.rollback(reason)
+           end
+         end) do
+      {:ok, value} ->
+        {:ok, value}
+
+      {:error, :chain_conflict} when attempts > 1 ->
+        commit(repo, keys, tekoa_id, tipo, payload, data_fn, attempts - 1)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "A cabeca da cadeia (nil no genesis)."
+  def head(repo, tekoa_id), do: repo.one(Queries.head(tekoa_id))
+
+  @doc "A cadeia inteira, do genesis em diante."
+  def entradas(repo, tekoa_id), do: repo.all(Queries.entradas(tekoa_id))
+
+  @doc "As entradas de um tipo (a projecao do mural)."
+  def por_tipo(repo, tekoa_id, tipo), do: repo.all(Queries.por_tipo(tekoa_id, tipo))
+
+  @doc "Insere pelo changeset dado (uso do produto e dos testes)."
+  def insert(repo, changeset), do: repo.insert(changeset)
 
   defp conflict?(errors) do
     Enum.any?(errors, fn
