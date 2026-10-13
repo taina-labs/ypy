@@ -6,6 +6,8 @@ defmodule Ypy.PersistenceCase do
 
   use ExUnit.CaseTemplate
 
+  alias Ecto.Adapters.SQL.Sandbox
+
   using do
     quote do
       import Ypy.PersistenceCase
@@ -15,7 +17,7 @@ defmodule Ypy.PersistenceCase do
   end
 
   setup do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Ypy.TestRepo)
+    :ok = Sandbox.checkout(Ypy.TestRepo)
 
     {entries, problems} =
       Ypy.Lexicon.Registry.load([Path.join(File.cwd!(), "priv/lexicons")])

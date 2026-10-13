@@ -119,13 +119,20 @@ defmodule Ypy.Record do
 
   defp from_wire(
          %{"$type" => type, "rkey" => rkey, "actor" => actor, "created_at" => created_at, "payload" => payload} = wire
-       )
-       when map_size(wire) == 5 and is_binary(type) and is_binary(rkey) and is_binary(actor) and is_integer(created_at) and
-              is_map(payload) do
-    {:ok, %__MODULE__{type: type, rkey: rkey, actor: actor, created_at: created_at, payload: payload}}
+       ) do
+    if envelope_ok?(wire, type, rkey, actor, created_at, payload) do
+      {:ok, %__MODULE__{type: type, rkey: rkey, actor: actor, created_at: created_at, payload: payload}}
+    else
+      {:error, :malformed}
+    end
   end
 
   defp from_wire(_), do: {:error, :malformed}
+
+  defp envelope_ok?(wire, type, rkey, actor, created_at, payload) do
+    map_size(wire) == 5 and is_binary(type) and is_binary(rkey) and is_binary(actor) and is_integer(created_at) and
+      is_map(payload)
+  end
 
   defp to_wire(%__MODULE__{} = record) do
     %{

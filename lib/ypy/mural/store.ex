@@ -30,26 +30,32 @@ defmodule Ypy.Mural.Store do
   def append(repo, keys, tekoa_id, tipo, payload) when is_binary(tipo) and is_map(payload) and is_integer(tekoa_id) do
     payload = Map.put(payload, "tipo", tipo)
     head = head(repo, tekoa_id)
-    seq = if head, do: head.seq + 1, else: 1
-    prev = if head, do: Cid.parse(head.cid)
+    seq = next_seq(head)
+    prev = prev_cid(head)
     body = %{"seq" => seq, "prev" => prev, "payload" => payload}
 
-    case keys.__struct__.sign(keys, tekoa_id, Cbor.encode(body)) do
-      {:ok, signature} ->
-        entry = %{"seq" => seq, "prev" => prev, "payload" => payload, "signature" => signature}
-        cid = Mural.entry_cid(entry)
-        changeset = changeset(tekoa_id, seq, prev, tipo, payload, signature, cid)
+    with {:ok, signature} <- keys.__struct__.sign(keys, tekoa_id, Cbor.encode(body)) do
+      insert_entry(repo, tekoa_id, tipo, payload, seq, prev, signature)
+    end
+  end
 
-        case repo.insert(changeset) do
-          {:ok, row} ->
-            {:ok, row}
+  defp next_seq(nil), do: 1
+  defp next_seq(head), do: head.seq + 1
 
-          {:error, %Ecto.Changeset{errors: errors}} = error ->
-            if conflict?(errors), do: {:error, :chain_conflict}, else: error
-        end
+  defp prev_cid(nil), do: nil
+  defp prev_cid(head), do: Cid.parse(head.cid)
 
-      {:error, reason} ->
-        {:error, reason}
+  defp insert_entry(repo, tekoa_id, tipo, payload, seq, prev, signature) do
+    entry = %{"seq" => seq, "prev" => prev, "payload" => payload, "signature" => signature}
+    cid = Mural.entry_cid(entry)
+    changeset = changeset(tekoa_id, seq, prev, tipo, payload, signature, cid)
+
+    case repo.insert(changeset) do
+      {:ok, row} ->
+        {:ok, row}
+
+      {:error, %Ecto.Changeset{errors: errors}} = error ->
+        if conflict?(errors), do: {:error, :chain_conflict}, else: error
     end
   end
 
@@ -71,14 +77,9 @@ defmodule Ypy.Mural.Store do
   defp commit(_repo, _keys, _tekoa_id, _tipo, _payload, _data_fn, 0), do: {:error, :chain_conflict}
 
   defp commit(repo, keys, tekoa_id, tipo, payload, data_fn, attempts) do
-    case repo.transaction(fn ->
-           with {:ok, value} <- data_fn.(),
-                {:ok, _entry} <- append(repo, keys, tekoa_id, tipo, payload) do
-             value
-           else
-             {:error, reason} -> repo.rollback(reason)
-           end
-         end) do
+    result = repo.transaction(fn -> write(repo, keys, tekoa_id, tipo, payload, data_fn) end)
+
+    case result do
       {:ok, value} ->
         {:ok, value}
 
@@ -87,6 +88,15 @@ defmodule Ypy.Mural.Store do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp write(repo, keys, tekoa_id, tipo, payload, data_fn) do
+    with {:ok, value} <- data_fn.(),
+         {:ok, _entry} <- append(repo, keys, tekoa_id, tipo, payload) do
+      value
+    else
+      {:error, reason} -> repo.rollback(reason)
     end
   end
 

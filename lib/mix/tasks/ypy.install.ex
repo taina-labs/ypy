@@ -47,19 +47,20 @@ defmodule Mix.Tasks.Ypy.Install do
     versao = versao(nome)
 
     case Path.wildcard(Path.join(destino, versao <> "_*.exs")) do
-      [] ->
-        caminho = Path.join(destino, nome)
-        File.write!(caminho, conteudo)
-        Mix.shell().info("* criando #{caminho}")
+      [] -> criar(Path.join(destino, nome), conteudo)
+      existentes -> Enum.each(existentes, &atualizar(&1, conteudo, versao))
+    end
+  end
 
-      existentes ->
-        Enum.each(existentes, fn caminho ->
-          if File.read!(caminho) != conteudo do
-            File.write!(caminho, conteudo)
+  defp criar(caminho, conteudo) do
+    File.write!(caminho, conteudo)
+    Mix.shell().info("* criando #{caminho}")
+  end
 
-            Mix.shell().info("* atualizando #{caminho} (a versao #{versao} ja existia com outro conteudo)")
-          end
-        end)
+  defp atualizar(caminho, conteudo, versao) do
+    if File.read!(caminho) != conteudo do
+      File.write!(caminho, conteudo)
+      Mix.shell().info("* atualizando #{caminho} (a versao #{versao} ja existia com outro conteudo)")
     end
   end
 

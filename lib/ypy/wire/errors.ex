@@ -39,7 +39,7 @@ defmodule Ypy.Wire.Errors do
   proprio atomo como code; changeset e `validation_failed`; o resto, 500
   `internal_error`.
   """
-  @spec resolve(atom() | %Ecto.Changeset{} | term()) :: {non_neg_integer(), String.t()}
+  @spec resolve(term()) :: {non_neg_integer(), String.t()}
   def resolve(%Ecto.Changeset{}), do: @validation
 
   def resolve(reason) when is_atom(reason) do

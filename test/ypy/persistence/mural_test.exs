@@ -4,6 +4,7 @@ defmodule Ypy.Mural.PersistenceTest do
   import Ecto.Query
   import Ypy.Factories
 
+  alias Ypy.KeyStore.Files
   alias Ypy.Maraca.TekoaKey
   alias Ypy.Mural
   alias Ypy.Mural.Store
@@ -86,7 +87,7 @@ defmodule Ypy.Mural.PersistenceTest do
   end
 
   test "sem chave para assinar, o append responde o erro do KeyStore", %{tekoa: tekoa} do
-    sem_chave = Ypy.KeyStore.Files.new(Ypy.Factories.dir_temporario("keys-vazias"))
+    sem_chave = Files.new(Ypy.Factories.dir_temporario("keys-vazias"))
 
     assert Store.append(TestRepo, sem_chave, tekoa.id, "put", %{"rkey" => "rk1"}) ==
              {:error, :not_found}

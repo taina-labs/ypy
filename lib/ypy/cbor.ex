@@ -90,43 +90,36 @@ defmodule Ypy.Cbor do
 
   defp dec(<<mt::3, ai::5, rest::binary>>) when mt in 0..6 do
     {n, rest} = arg(ai, rest)
+    dec_type(mt, n, rest)
+  end
 
-    case mt do
-      0 ->
-        {n, rest}
+  defp dec_type(0, n, rest), do: {n, rest}
+  defp dec_type(1, n, rest), do: {-1 - n, rest}
 
-      1 ->
-        {-1 - n, rest}
+  defp dec_type(2, n, rest) do
+    <<data::binary-size(^n), tail::binary>> = rest
+    {%Bytes{data: data}, tail}
+  end
 
-      2 ->
-        <<data::binary-size(^n), tail::binary>> = rest
-        {%Bytes{data: data}, tail}
+  defp dec_type(3, n, rest) do
+    <<data::binary-size(^n), tail::binary>> = rest
 
-      3 ->
-        <<data::binary-size(^n), tail::binary>> = rest
+    if !String.valid?(data) do
+      raise ArgumentError, "invalid UTF-8 in text string"
+    end
 
-        if !String.valid?(data) do
-          raise ArgumentError, "invalid UTF-8 in text string"
-        end
+    {data, tail}
+  end
 
-        {data, tail}
+  defp dec_type(4, n, rest), do: dec_list(n, rest, [])
+  defp dec_type(5, n, rest), do: dec_map(n, rest, %{})
 
-      4 ->
-        dec_list(n, rest, [])
+  defp dec_type(6, n, rest) do
+    if n != 42, do: raise(ArgumentError, "unsupported tag: #{n}")
 
-      5 ->
-        dec_map(n, rest, %{})
-
-      6 ->
-        if n != 42, do: raise(ArgumentError, "unsupported tag: #{n}")
-
-        case dec(rest) do
-          {%Bytes{data: <<0, cid_bytes::binary>>}, tail} ->
-            {Cid.from_bytes(cid_bytes), tail}
-
-          _ ->
-            raise ArgumentError, "malformed CID link in tag 42"
-        end
+    case dec(rest) do
+      {%Bytes{data: <<0, cid_bytes::binary>>}, tail} -> {Cid.from_bytes(cid_bytes), tail}
+      _ -> raise ArgumentError, "malformed CID link in tag 42"
     end
   end
 

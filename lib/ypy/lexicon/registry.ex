@@ -1,6 +1,6 @@
 defmodule Ypy.Lexicon.Registry do
   @moduledoc """
-  Todo lexicon que o kernel conhece, indexado por NSID.
+  Os lexicons que o kernel conhece, indexados por NSID.
 
   O indice mora em `:persistent_term`, escrito uma vez pelo produto no boot e
   somente lido depois: lexicons so mudam quando alguem troca um arquivo, e
@@ -34,7 +34,7 @@ defmodule Ypy.Lexicon.Registry do
     {entries, problems}
   end
 
-  @doc "Todo lexicon carregado, como mapa de NSID a documento."
+  @doc "Os lexicons carregados, como mapa de NSID a documento."
   def all, do: cache().entries
 
   @doc "O documento de um NSID, ou nil."

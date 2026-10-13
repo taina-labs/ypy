@@ -6,7 +6,9 @@ defmodule Ypy.Maraca.PersistenceTest do
   alias Ypy.BrokenKeys
   alias Ypy.Maraca
   alias Ypy.Maraca.Ava
+  alias Ypy.Maraca.Credentials
   alias Ypy.Maraca.Policy
+  alias Ypy.Maraca.Store
   alias Ypy.Scope
   alias Ypy.Ybira
 
@@ -177,7 +179,7 @@ defmodule Ypy.Maraca.PersistenceTest do
       Maraca.mudar_papel(TestRepo, ctx.keys, ctx.zelador_scope, ctx.outro, :zelador)
 
     assert promovido.papel == :zelador
-    assert Ypy.Maraca.Store.count_zeladores(TestRepo, ctx.tekoa.id) == 2
+    assert Store.count_zeladores(TestRepo, ctx.tekoa.id) == 2
 
     # Dois zeladores: pode destituir um, nao o outro.
     {:ok, _} = Maraca.mudar_papel(TestRepo, ctx.keys, ctx.zelador_scope, ctx.outro, :morador)
@@ -251,7 +253,7 @@ defmodule Ypy.Maraca.PersistenceTest do
 
     assert Ava.active?(ativo) == true
     assert ativo.password_hash
-    assert Ypy.Maraca.Credentials.valid_password?("senhaforte123", ativo.password_hash)
+    assert Credentials.valid_password?("senhaforte123", ativo.password_hash)
 
     # Expiracao do convite (politica pura sobre a coluna).
     assert Policy.invite_expired?(agora, DateTime.shift(agora, day: 3)) == true

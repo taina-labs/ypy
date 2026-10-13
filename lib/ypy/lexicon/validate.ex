@@ -103,15 +103,8 @@ defmodule Ypy.Lexicon.Validate do
     allowed = Enum.reject([schema["ref"] | Map.get(schema, "refs", [])], &is_nil/1)
 
     case value["$type"] do
-      nil ->
-        [{path, :missing_type}]
-
-      type ->
-        case resolve(schema, allowed, type) do
-          {:ok, target} -> errors(target, value, path)
-          :foreign -> []
-          :unknown -> if(schema["closed"] == true, do: [{path, :unknown_type}], else: [])
-        end
+      nil -> [{path, :missing_type}]
+      type -> union_errors(schema, allowed, type, value, path)
     end
   end
 
@@ -149,6 +142,14 @@ defmodule Ypy.Lexicon.Validate do
 
   defp errors(_def, _value, path), do: [{path, :unrecognized_definition}]
 
+  defp union_errors(schema, allowed, type, value, path) do
+    case resolve(schema, allowed, type) do
+      {:ok, target} -> errors(target, value, path)
+      :foreign -> []
+      :unknown -> if(schema["closed"] == true, do: [{path, :unknown_type}], else: [])
+    end
+  end
+
   defp item_errors(nil, _value, _path), do: []
 
   defp item_errors(items, value, path) do
@@ -170,47 +171,42 @@ defmodule Ypy.Lexicon.Validate do
   defp errors_in(value, properties, path, nullable, required) do
     Enum.flat_map(properties, fn {key, schema} ->
       case Map.fetch(value, key) do
-        {:ok, nil} ->
-          if key in nullable or key in required,
-            do: [],
-            else: errors(schema, nil, path ++ [key])
-
-        {:ok, nested} ->
-          errors(schema, nested, path ++ [key])
-
-        :error ->
-          []
+        {:ok, nil} -> nil_value_errors(schema, key, path, nullable, required)
+        {:ok, nested} -> errors(schema, nested, path ++ [key])
+        :error -> []
       end
     end)
   end
 
+  defp nil_value_errors(schema, key, path, nullable, required) do
+    if key in nullable or key in required,
+      do: [],
+      else: errors(schema, nil, path ++ [key])
+  end
+
   defp resolve(schema, allowed, type) do
-    {target, fragment} =
-      case String.split(type, "#", parts: 2) do
-        ["#" <> name] -> {"", name}
-        [nsid] -> {nsid, nil}
-        [nsid, name] -> {nsid, name}
-      end
+    {target, fragment} = split_ref(type)
 
     cond do
-      type in allowed ->
-        variant(schema, type, fragment)
-
-      target == "" ->
-        :unknown
-
-      is_nil(fragment) ->
-        if target in allowed, do: variant(schema, target, nil), else: :unknown
-
-      target in allowed ->
-        variant(schema, target, fragment)
-
-      ("#" <> fragment) in allowed ->
-        variant(schema, "#" <> fragment, fragment)
-
-      true ->
-        :unknown
+      type in allowed -> variant(schema, type, fragment)
+      target == "" -> :unknown
+      is_nil(fragment) -> resolve_target(schema, allowed, target)
+      target in allowed -> variant(schema, target, fragment)
+      ("#" <> fragment) in allowed -> variant(schema, "#" <> fragment, fragment)
+      true -> :unknown
     end
+  end
+
+  defp split_ref(type) do
+    case String.split(type, "#", parts: 2) do
+      ["#" <> name] -> {"", name}
+      [nsid] -> {nsid, nil}
+      [nsid, name] -> {nsid, name}
+    end
+  end
+
+  defp resolve_target(schema, allowed, target) do
+    if target in allowed, do: variant(schema, target, nil), else: :unknown
   end
 
   defp variant(schema, ref, fragment) do

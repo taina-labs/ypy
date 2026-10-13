@@ -10,6 +10,8 @@ defmodule Ypy.RacyRepo do
   tres tentativas e ver {:error, :chain_conflict}).
   """
 
+  alias Ypy.Mural.Store
+
   @armed :racy_repo_armed
 
   def arm(keys, tekoa_id, tipo, payload) do
@@ -36,7 +38,7 @@ defmodule Ypy.RacyRepo do
 
       {mode, keys, tekoa_id, tipo, payload} ->
         if mode == :once, do: disarm()
-        _ = Ypy.Mural.Store.append(Ypy.TestRepo, keys, tekoa_id, tipo, payload)
+        _ = Store.append(Ypy.TestRepo, keys, tekoa_id, tipo, payload)
         Ypy.TestRepo.insert(changeset, opts)
     end
   end
