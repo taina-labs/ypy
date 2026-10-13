@@ -4,12 +4,17 @@ defmodule Ypy.MixProject do
   def project do
     [
       app: :ypy,
-      version: "0.0.0",
+      version: "0.1.0",
       elixir: "~> 1.19",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
-      deps: deps()
+      deps: deps(),
+      name: "Ypy",
+      description: description(),
+      source_url: "https://github.com/taina-labs/ypy",
+      homepage_url: "https://github.com/taina-labs/ypy",
+      package: package()
     ]
   end
 
@@ -22,6 +27,19 @@ defmodule Ypy.MixProject do
 
   def cli do
     [preferred_envs: [precommit: :test]]
+  end
+
+  defp description do
+    "O kernel do ecossistema Taina: o schema e o nucleo puro compartilhados pelos produtos."
+  end
+
+  defp package do
+    [
+      name: "ypy",
+      licenses: ["MPL-2.0"],
+      links: %{"GitHub" => "https://github.com/taina-labs/ypy"},
+      files: ~w(lib priv api mix.exs README.md LICENSE)
+    ]
   end
 
   defp deps do
