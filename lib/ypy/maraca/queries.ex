@@ -6,7 +6,11 @@ defmodule Ypy.Maraca.Queries do
 
   import Ecto.Query
 
-  alias Ypy.Maraca.{Ava, Concessao, Pedido, Tekoa, TekoaKey}
+  alias Ypy.Maraca.Ava
+  alias Ypy.Maraca.Concessao
+  alias Ypy.Maraca.Pedido
+  alias Ypy.Maraca.Tekoa
+  alias Ypy.Maraca.TekoaKey
 
   @doc "A Tekoa pelo id do banco."
   def tekoa(tekoa_id), do: from(t in Tekoa, where: t.id == ^tekoa_id)

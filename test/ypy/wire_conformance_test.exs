@@ -9,7 +9,11 @@ defmodule Ypy.Wire.ConformanceTest do
 
   use ExUnit.Case, async: true
 
-  alias Ypy.{Cid, Lexicon, OpenAPI, Record, Tid}
+  alias Ypy.Cid
+  alias Ypy.Lexicon
+  alias Ypy.OpenAPI
+  alias Ypy.Record
+  alias Ypy.Tid
 
   @actor "ana@tekoa.br"
   @agora 1_700_000_000_000_000
@@ -90,7 +94,7 @@ defmodule Ypy.Wire.ConformanceTest do
     rkey
   end
 
-  defp cid, do: Cid.from_data("conformidade") |> Cid.to_string()
+  defp cid, do: "conformidade" |> Cid.from_data() |> Cid.to_string()
 
   # O mapeamento de tipos do lexicon para o fio (RFC_006 secao 6): o par
   # chave e valor que a propriedade do component precisa carregar. Descricoes

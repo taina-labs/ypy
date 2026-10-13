@@ -7,7 +7,9 @@ defmodule Ypy.Maraca.Store do
 
   import Ecto.Query, only: [where: 3]
 
-  alias Ypy.Maraca.{Concessao, Pedido, Queries}
+  alias Ypy.Maraca.Concessao
+  alias Ypy.Maraca.Pedido
+  alias Ypy.Maraca.Queries
 
   @doc "A Tekoa pelo id."
   def get_tekoa(repo, tekoa_id), do: repo.one(Queries.tekoa(tekoa_id))
@@ -34,12 +36,10 @@ defmodule Ypy.Maraca.Store do
   def count_moradores(repo, tekoa_id), do: repo.aggregate(Queries.moradores(tekoa_id), :count)
 
   @doc "As concessoes ativas de um leitor, no plano da regra de leitura."
-  def concessoes_ativas(repo, tekoa_id, leitor_id),
-    do: repo.all(Queries.concessoes_ativas(tekoa_id, leitor_id))
+  def concessoes_ativas(repo, tekoa_id, leitor_id), do: repo.all(Queries.concessoes_ativas(tekoa_id, leitor_id))
 
   @doc "As concessoes que um dono concedeu, mais recentes primeiro."
-  def concessoes_concedidas(repo, tekoa_id, dono_id),
-    do: repo.all(Queries.concessoes_concedidas(tekoa_id, dono_id))
+  def concessoes_concedidas(repo, tekoa_id, dono_id), do: repo.all(Queries.concessoes_concedidas(tekoa_id, dono_id))
 
   @doc "A concessao pelo id, dentro da Tekoa."
   def get_concessao(repo, tekoa_id, concessao_id) do
@@ -47,12 +47,10 @@ defmodule Ypy.Maraca.Store do
   end
 
   @doc "Os pedidos pendentes que o dono recebeu."
-  def pedidos_recebidos(repo, tekoa_id, dono_id),
-    do: repo.all(Queries.pedidos_recebidos(tekoa_id, dono_id))
+  def pedidos_recebidos(repo, tekoa_id, dono_id), do: repo.all(Queries.pedidos_recebidos(tekoa_id, dono_id))
 
   @doc "Os pedidos que o morador enviou, mais recentes primeiro."
-  def pedidos_enviados(repo, tekoa_id, pedinte_id),
-    do: repo.all(Queries.pedidos_enviados(tekoa_id, pedinte_id))
+  def pedidos_enviados(repo, tekoa_id, pedinte_id), do: repo.all(Queries.pedidos_enviados(tekoa_id, pedinte_id))
 
   @doc "O pedido pelo id, dentro da Tekoa."
   def get_pedido(repo, tekoa_id, pedido_id) do

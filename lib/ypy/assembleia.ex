@@ -9,7 +9,10 @@ defmodule Ypy.Assembleia do
   execucao uma vez e nunca mais ({:error, :already_executed}).
   """
 
-  alias Ypy.Assembleia.{Policy, Proposta, Store, Voto}
+  alias Ypy.Assembleia.Policy
+  alias Ypy.Assembleia.Proposta
+  alias Ypy.Assembleia.Store
+  alias Ypy.Assembleia.Voto
   alias Ypy.Maraca.Store, as: MaracaStore
   alias Ypy.Scope
 
@@ -28,20 +31,18 @@ defmodule Ypy.Assembleia do
         ) ::
           {:ok, Proposta.t()} | {:error, term()}
   def abrir(repo, %Scope{} = scope, tipo, payload, opts \\ []) when tipo in @tipos do
-    with {:ok, fecha_em} <- fetch_fecha_em(opts),
-         {:ok, proposta} <-
-           Store.insert(
-             repo,
-             Proposta.changeset(%Proposta{}, %{
-               tekoa_id: scope.tekoa.id,
-               autor_id: scope.ava.id,
-               tipo: tipo,
-               payload: payload,
-               status: :aberta,
-               fecha_em: fecha_em
-             })
-           ) do
-      {:ok, proposta}
+    with {:ok, fecha_em} <- fetch_fecha_em(opts) do
+      Store.insert(
+        repo,
+        Proposta.changeset(%Proposta{}, %{
+          tekoa_id: scope.tekoa.id,
+          autor_id: scope.ava.id,
+          tipo: tipo,
+          payload: payload,
+          status: :aberta,
+          fecha_em: fecha_em
+        })
+      )
     end
   end
 
@@ -52,8 +53,7 @@ defmodule Ypy.Assembleia do
   """
   @spec votar(Ecto.Repo.t(), Scope.t(), Proposta.t(), :sim | :nao) ::
           {:ok, Voto.t()} | {:error, term()}
-  def votar(repo, %Scope{} = scope, %Proposta{} = proposta, escolha)
-      when escolha in [:sim, :nao] do
+  def votar(repo, %Scope{} = scope, %Proposta{} = proposta, escolha) when escolha in [:sim, :nao] do
     with :ok <- mesma_tekoa(scope, proposta),
          :ok <- aberta_guard(proposta),
          :ok <- prazo_guard(proposta) do
@@ -93,6 +93,9 @@ defmodule Ypy.Assembleia do
   {:error, :already_executed} quando o ato ja rodou. A execucao em si (o
   efeito do ato) e do produto, que usa este token.
   """
+
+  ## Internos
+
   @spec executar(Ecto.Repo.t(), integer(), Proposta.t()) ::
           {:ok, Proposta.t()} | {:error, :already_executed | term()}
   def executar(repo, tekoa_id, %Proposta{id: id}) do
@@ -111,14 +114,10 @@ defmodule Ypy.Assembleia do
 
   @doc "Os votos de uma proposta, do primeiro ao ultimo."
   @spec votos(Ecto.Repo.t(), integer(), Proposta.t()) :: [map()]
-  def votos(repo, tekoa_id, %Proposta{} = proposta),
-    do: Store.votos(repo, tekoa_id, proposta.id)
-
-  ## Internos
+  def votos(repo, tekoa_id, %Proposta{} = proposta), do: Store.votos(repo, tekoa_id, proposta.id)
 
   defp mesma_tekoa(%Scope{tekoa: %{id: tekoa_id}}, %Proposta{tekoa_id: proposta_tekoa_id})
-       when tekoa_id == proposta_tekoa_id,
-       do: :ok
+       when tekoa_id == proposta_tekoa_id, do: :ok
 
   defp mesma_tekoa(_scope, _proposta), do: {:error, :cross_tekoa}
 
@@ -148,5 +147,5 @@ defmodule Ypy.Assembleia do
     end
   end
 
-  defp agora, do: DateTime.utc_now() |> DateTime.truncate(:second)
+  defp agora, do: DateTime.truncate(DateTime.utc_now(), :second)
 end

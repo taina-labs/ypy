@@ -101,8 +101,7 @@ defmodule Ypy.Lexicon do
     |> put_variants(document, seen, entries)
   end
 
-  defp resolve(%{"properties" => properties} = node, document, seen, entries)
-       when is_map(properties) do
+  defp resolve(%{"properties" => properties} = node, document, seen, entries) when is_map(properties) do
     Map.put(
       node,
       "properties",
@@ -144,8 +143,7 @@ defmodule Ypy.Lexicon do
     end
   end
 
-  defp foreign("#" <> name, document, _entries),
-    do: {get_in(document, ["defs", name]), document}
+  defp foreign("#" <> name, document, _entries), do: {get_in(document, ["defs", name]), document}
 
   defp foreign(ref, _document, entries) do
     case String.split(ref, "#", parts: 2) do

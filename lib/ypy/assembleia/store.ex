@@ -7,7 +7,8 @@ defmodule Ypy.Assembleia.Store do
 
   import Ecto.Query, only: [where: 3]
 
-  alias Ypy.Assembleia.{Proposta, Queries}
+  alias Ypy.Assembleia.Proposta
+  alias Ypy.Assembleia.Queries
 
   @doc "A proposta pelo public_id, dentro da Tekoa."
   def get_proposta(repo, tekoa_id, public_id) do
@@ -27,7 +28,8 @@ defmodule Ypy.Assembleia.Store do
 
   @doc "As escolhas de uma proposta, no plano que a politica fala."
   def escolhas(repo, tekoa_id, proposta_id) do
-    votos(repo, tekoa_id, proposta_id)
+    repo
+    |> votos(tekoa_id, proposta_id)
     |> Enum.map(& &1.escolha)
   end
 
@@ -44,8 +46,8 @@ defmodule Ypy.Assembleia.Store do
   """
   def claim_execucao(repo, tekoa_id, proposta_id, agora) do
     {count, _} =
-      where(
-        Proposta,
+      Proposta
+      |> where(
         [p],
         p.tekoa_id == ^tekoa_id and p.id == ^proposta_id and p.status == :aprovada and
           is_nil(p.executado_em)

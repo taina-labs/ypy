@@ -8,9 +8,9 @@ defmodule Ypy.PersistenceCase do
 
   using do
     quote do
-      alias Ypy.TestRepo
-
       import Ypy.PersistenceCase
+
+      alias Ypy.TestRepo
     end
   end
 

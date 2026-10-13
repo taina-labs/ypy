@@ -5,8 +5,13 @@ defmodule Ypy.Factories do
   pelo changeset do kernel e os efeitos rodam sobre diretorios temporarios.
   """
 
-  alias Ypy.{BlobStore, KeyStore, Scope}
-  alias Ypy.Maraca.{Ava, Store, Tekoa, TekoaKey}
+  alias Ypy.BlobStore
+  alias Ypy.KeyStore
+  alias Ypy.Maraca.Ava
+  alias Ypy.Maraca.Store
+  alias Ypy.Maraca.Tekoa
+  alias Ypy.Maraca.TekoaKey
+  alias Ypy.Scope
 
   @doc "Uma Tekoa com chave ativa; devolve {tekoa, keys} do KeyStore dela."
   def nova_tekoa(repo, attrs \\ []) do
@@ -53,7 +58,7 @@ defmodule Ypy.Factories do
     {:ok, ava} = repo.insert(Ava.changeset(%Ava{tekoa_id: tekoa.id}, Map.new(attrs)))
 
     ativado =
-      Ecto.Changeset.change(ava, activated_at: DateTime.utc_now() |> DateTime.truncate(:second))
+      Ecto.Changeset.change(ava, activated_at: DateTime.truncate(DateTime.utc_now(), :second))
 
     {:ok, ava} = repo.update(ativado)
 

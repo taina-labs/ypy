@@ -1,12 +1,14 @@
 defmodule Ypy.Mural.PersistenceTest do
   use Ypy.PersistenceCase, async: false
 
+  import Ecto.Query
+  import Ypy.Factories
+
+  alias Ypy.Maraca.TekoaKey
   alias Ypy.Mural
   alias Ypy.Mural.Store
   alias Ypy.RacyRepo
-
-  import Ecto.Query
-  import Ypy.Factories
+  alias Ypy.Ybira.Folder
 
   setup do
     {tekoa, keys} = nova_tekoa(TestRepo)
@@ -111,15 +113,16 @@ defmodule Ypy.Mural.PersistenceTest do
     {:ok, _} = Store.append(TestRepo, keys, tekoa.id, "put", %{"rkey" => "rk1"})
 
     _ =
-      Ypy.Maraca.Store.chave_ativa(TestRepo, tekoa.id)
-      |> Ypy.Maraca.TekoaKey.retire_changeset(DateTime.utc_now() |> DateTime.truncate(:second))
+      TestRepo
+      |> Ypy.Maraca.Store.chave_ativa(tekoa.id)
+      |> TekoaKey.retire_changeset(DateTime.truncate(DateTime.utc_now(), :second))
       |> TestRepo.update!()
 
     assert Mural.verificar_cadeia(TestRepo, tekoa.id) == {:error, :not_found}
   end
 
   defp tekoa_pub(repo, tekoa_id) do
-    %Ypy.Maraca.TekoaKey{pub: pub} = Ypy.Maraca.Store.chave_ativa(repo, tekoa_id)
+    %TekoaKey{pub: pub} = Ypy.Maraca.Store.chave_ativa(repo, tekoa_id)
     pub
   end
 
@@ -131,7 +134,7 @@ defmodule Ypy.Mural.PersistenceTest do
 
       Store.insert(
         repo,
-        Ypy.Ybira.Folder.changeset(%Ypy.Ybira.Folder{}, %{
+        Folder.changeset(%Folder{}, %{
           tekoa_id: tekoa.id,
           dono_id: dono.id,
           rkey: "rrrrrrrrrrrrr",
@@ -143,7 +146,7 @@ defmodule Ypy.Mural.PersistenceTest do
   end
 
   defp dado_contado(tekoa) do
-    TestRepo.aggregate(from(f in Ypy.Ybira.Folder, where: f.tekoa_id == ^tekoa.id), :count)
+    TestRepo.aggregate(from(f in Folder, where: f.tekoa_id == ^tekoa.id), :count)
   end
 
   defp to_entry(%Ypy.Mural.Entry{} = row) do

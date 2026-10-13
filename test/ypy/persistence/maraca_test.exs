@@ -1,12 +1,14 @@
 defmodule Ypy.Maraca.PersistenceTest do
   use Ypy.PersistenceCase, async: false
 
+  import Ypy.Factories
+
   alias Ypy.BrokenKeys
   alias Ypy.Maraca
+  alias Ypy.Maraca.Ava
+  alias Ypy.Maraca.Policy
   alias Ypy.Scope
   alias Ypy.Ybira
-
-  import Ypy.Factories
 
   setup do
     {tekoa, keys} = nova_tekoa(TestRepo)
@@ -15,6 +17,7 @@ defmodule Ypy.Maraca.PersistenceTest do
     {:ok, zelador} = novo_ava(TestRepo, tekoa, username: "zel", papel: :zelador)
 
     %{
+      ## Concessao
       tekoa: tekoa,
       keys: keys,
       dono: dono,
@@ -25,8 +28,6 @@ defmodule Ypy.Maraca.PersistenceTest do
       zelador_scope: %Scope{ava: zelador, tekoa: tekoa}
     }
   end
-
-  ## Concessao
 
   test "conceder exige dono, mesma Tekoa e recurso ainda nao legivel", ctx do
     {:ok, file} = upload_na_casa(ctx, ctx.dono_scope)
@@ -92,7 +93,7 @@ defmodule Ypy.Maraca.PersistenceTest do
              {:error, :not_authorized}
 
     {:ok, revogada} = Maraca.revogar(TestRepo, ctx.keys, ctx.dono_scope, concessao)
-    assert revogada.revogada_em != nil
+    assert revogada.revogada_em
 
     assert Maraca.revogar(TestRepo, ctx.keys, ctx.dono_scope, revogada) ==
              {:error, :invalid_status}
@@ -100,8 +101,6 @@ defmodule Ypy.Maraca.PersistenceTest do
     # Revogada, o leitor para de ler.
     assert Ybira.readable?(TestRepo, ctx.outro_scope, "ypy.file.v0", file.rkey) == false
   end
-
-  ## Pedido
 
   test "pedir acesso: dono resolve do recurso e o que ja le nao pede", ctx do
     {:ok, file} = upload_na_casa(ctx, ctx.dono_scope)
@@ -127,6 +126,8 @@ defmodule Ypy.Maraca.PersistenceTest do
     {:ok, pedido} =
       Maraca.pedir_acesso(TestRepo, ctx.outro_scope, "ypy.file.v0", file.rkey, "quero ver")
 
+    ## Pedido
+
     # A decisao e do dono, e so uma vez.
     assert Maraca.aprovar(TestRepo, ctx.keys, ctx.outro_scope, pedido) ==
              {:error, :not_authorized}
@@ -135,7 +136,7 @@ defmodule Ypy.Maraca.PersistenceTest do
       Maraca.aprovar(TestRepo, ctx.keys, ctx.dono_scope, pedido)
 
     assert aprovado.status == :aprovado
-    assert aprovado.decidido_em != nil
+    assert aprovado.decidido_em
     assert concessao.leitor_id == ctx.outro.id
 
     assert {:ok, _} = Ybira.get_file(TestRepo, ctx.outro_scope, file.rkey)
@@ -166,8 +167,6 @@ defmodule Ypy.Maraca.PersistenceTest do
     assert length(Maraca.pedidos_enviados(TestRepo, ctx.outro_scope)) == 1
     assert Maraca.pedidos_recebidos(TestRepo, ctx.outro_scope) == []
   end
-
-  ## Papel
 
   test "mudar papel e de zelador e protege a ultima zeladoria", ctx do
     # So zelador troca papel.
@@ -212,6 +211,7 @@ defmodule Ypy.Maraca.PersistenceTest do
              "papel" => "zelador"
            }
 
+    ## Papel
     assert Ypy.Mural.verificar_cadeia(TestRepo, ctx.tekoa.id) == :ok
 
     # A cadeia falhou, o papel nao mudou: o ato e um so fato.
@@ -224,12 +224,12 @@ defmodule Ypy.Maraca.PersistenceTest do
   end
 
   test "ava pendente e aceite de convite, invariantes do kernel", ctx do
-    token_hash = :crypto.hash(:sha256, "token-cru") |> Base.encode64(padding: false)
-    agora = DateTime.utc_now() |> DateTime.truncate(:second)
+    token_hash = :sha256 |> :crypto.hash("token-cru") |> Base.encode64(padding: false)
+    agora = DateTime.truncate(DateTime.utc_now(), :second)
 
     {:ok, pendente} =
       TestRepo.insert(
-        Ypy.Maraca.Ava.invitation_changeset(%Ypy.Maraca.Ava{}, %{
+        Ava.invitation_changeset(%Ava{}, %{
           tekoa_id: ctx.tekoa.id,
           invited_by_id: ctx.dono.id,
           papel: :morador,
@@ -239,23 +239,23 @@ defmodule Ypy.Maraca.PersistenceTest do
         })
       )
 
-    assert Ypy.Maraca.Ava.active?(pendente) == false
+    assert Ava.active?(pendente) == false
 
     {:ok, ativo} =
       TestRepo.update(
-        Ypy.Maraca.Ava.accept_changeset(pendente, %{
+        Ava.accept_changeset(pendente, %{
           username: "nova_pessoa",
           password: "senhaforte123"
         })
       )
 
-    assert Ypy.Maraca.Ava.active?(ativo) == true
-    assert ativo.password_hash != nil
+    assert Ava.active?(ativo) == true
+    assert ativo.password_hash
     assert Ypy.Maraca.Credentials.valid_password?("senhaforte123", ativo.password_hash)
 
     # Expiracao do convite (politica pura sobre a coluna).
-    assert Ypy.Maraca.Policy.invite_expired?(agora, DateTime.add(agora, 3 * 24 * 3600)) == true
-    assert Ypy.Maraca.Policy.invite_expired?(agora, agora) == false
+    assert Policy.invite_expired?(agora, DateTime.shift(agora, day: 3)) == true
+    assert Policy.invite_expired?(agora, agora) == false
   end
 
   defp upload_na_casa(ctx, scope) do

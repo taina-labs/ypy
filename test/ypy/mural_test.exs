@@ -15,8 +15,7 @@ defmodule Ypy.MuralTest do
 
   defp seal_chain(priv, payloads) do
     {entries, _last_cid, _last_seq} =
-      payloads
-      |> Enum.reduce({[], nil, 1}, fn payload, {acc, prev, seq} ->
+      Enum.reduce(payloads, {[], nil, 1}, fn payload, {acc, prev, seq} ->
         entry = Mural.seal(seq, prev, payload, priv)
         {[entry | acc], Mural.entry_cid(entry), seq + 1}
       end)

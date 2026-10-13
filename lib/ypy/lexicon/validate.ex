@@ -91,9 +91,8 @@ defmodule Ypy.Lexicon.Validate do
 
   defp errors(%{"type" => "float"}, _value, path), do: [{path, :expected_float}]
 
-  defp errors(%{"type" => "number"} = schema, value, path)
-       when is_integer(value) or is_float(value),
-       do: const_errors(schema["const"], value, path)
+  defp errors(%{"type" => "number"} = schema, value, path) when is_integer(value) or is_float(value),
+    do: const_errors(schema["const"], value, path)
 
   defp errors(%{"type" => "number"}, _value, path), do: [{path, :expected_number}]
   defp errors(%{"type" => "boolean"}, value, _path) when is_boolean(value), do: []
@@ -101,7 +100,7 @@ defmodule Ypy.Lexicon.Validate do
   defp errors(%{"type" => "unknown"}, _value, _path), do: []
 
   defp errors(%{"type" => "union"} = schema, value, path) when is_map(value) do
-    allowed = [schema["ref"] | Map.get(schema, "refs", [])] |> Enum.reject(&is_nil/1)
+    allowed = Enum.reject([schema["ref"] | Map.get(schema, "refs", [])], &is_nil/1)
 
     case value["$type"] do
       nil ->
@@ -254,8 +253,7 @@ defmodule Ypy.Lexicon.Validate do
 
   defp blob_size_errors(nil, _size, _path), do: []
 
-  defp blob_size_errors(max, size, path) when is_integer(size) and size > max,
-    do: [{path, :too_large}]
+  defp blob_size_errors(max, size, path) when is_integer(size) and size > max, do: [{path, :too_large}]
 
   defp blob_size_errors(_max, _size, _path), do: []
 
@@ -311,13 +309,11 @@ defmodule Ypy.Lexicon.Validate do
 
   defp const_errors(nil, _value, _path), do: []
 
-  defp const_errors(const, value, path),
-    do: if(const === value, do: [], else: [{path, :not_const}])
+  defp const_errors(const, value, path), do: if(const === value, do: [], else: [{path, :not_const}])
 
   defp enum_errors(nil, _value, _path), do: []
 
-  defp enum_errors(allowed, value, path),
-    do: if(value in allowed, do: [], else: [{path, :not_in_enum}])
+  defp enum_errors(allowed, value, path), do: if(value in allowed, do: [], else: [{path, :not_in_enum}])
 
   defp format_errors(nil, _value, _path), do: []
 

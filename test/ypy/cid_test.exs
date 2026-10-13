@@ -56,9 +56,7 @@ defmodule Ypy.CidTest do
   test "safe_parse answers :error on a non-base32 string and on a truncated cid" do
     assert Cid.safe_parse("bafyrei") == :error
 
-    assert Cid.safe_parse(
-             String.slice("bafyreiauu4dlrmesbnb7i24u7niyunmpxb6bg4dmpo7ul7wnslx5b77gf4", 0, 20)
-           ) == :error
+    assert Cid.safe_parse(String.slice("bafyreiauu4dlrmesbnb7i24u7niyunmpxb6bg4dmpo7ul7wnslx5b77gf4", 0, 20)) == :error
   end
 
   test "safe_parse answers the same struct parse does on input that decodes" do

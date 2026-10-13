@@ -15,8 +15,7 @@ defmodule Ypy.Assembleia.Policy do
 
   @doc "Quorum para uma Tekoa com `moradores` membros: ceil(moradores/2)."
   @spec quorum(non_neg_integer()) :: non_neg_integer()
-  def quorum(moradores) when is_integer(moradores) and moradores >= 0,
-    do: ceil(moradores / 2)
+  def quorum(moradores) when is_integer(moradores) and moradores >= 0, do: ceil(moradores / 2)
 
   @doc """
   O que uma proposta fechada vale.
@@ -44,6 +43,5 @@ defmodule Ypy.Assembleia.Policy do
   prazo ainda vale, e so a virada expira.
   """
   @spec expired?(DateTime.t(), DateTime.t()) :: boolean()
-  def expired?(%DateTime{} = closes_at, %DateTime{} = now),
-    do: DateTime.compare(now, closes_at) == :gt
+  def expired?(%DateTime{} = closes_at, %DateTime{} = now), do: DateTime.after?(now, closes_at)
 end

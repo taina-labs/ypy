@@ -3,7 +3,8 @@ defmodule Ypy.Assembleia.Queries do
 
   import Ecto.Query
 
-  alias Ypy.Assembleia.{Proposta, Voto}
+  alias Ypy.Assembleia.Proposta
+  alias Ypy.Assembleia.Voto
 
   @doc "As propostas de uma Tekoa, mais recentes primeiro."
   def propostas(tekoa_id, opts \\ []) do

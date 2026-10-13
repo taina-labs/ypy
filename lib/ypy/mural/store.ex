@@ -10,10 +10,14 @@ defmodule Ypy.Mural.Store do
   `{:error, :chain_conflict}`. Nenhum processo por repo.
   """
 
-  @max_attempts 3
+  alias Ypy.Cbor
+  alias Ypy.Cid
+  alias Ypy.KeyStore
+  alias Ypy.Mural
+  alias Ypy.Mural.Entry
+  alias Ypy.Mural.Queries
 
-  alias Ypy.{Cbor, Cid, KeyStore, Mural}
-  alias Ypy.Mural.{Entry, Queries}
+  @max_attempts 3
 
   @doc """
   Anexa `payload` (mapa de chaves de string) como entrada do `tipo` dado e
@@ -23,12 +27,11 @@ defmodule Ypy.Mural.Store do
   """
   @spec append(Ecto.Repo.t(), KeyStore.t(), integer(), String.t(), map()) ::
           {:ok, Entry.t()} | {:error, :chain_conflict | term()}
-  def append(repo, keys, tekoa_id, tipo, payload)
-      when is_binary(tipo) and is_map(payload) and is_integer(tekoa_id) do
+  def append(repo, keys, tekoa_id, tipo, payload) when is_binary(tipo) and is_map(payload) and is_integer(tekoa_id) do
     payload = Map.put(payload, "tipo", tipo)
     head = head(repo, tekoa_id)
     seq = if head, do: head.seq + 1, else: 1
-    prev = if head, do: Cid.parse(head.cid), else: nil
+    prev = if head, do: Cid.parse(head.cid)
     body = %{"seq" => seq, "prev" => prev, "payload" => payload}
 
     case keys.__struct__.sign(keys, tekoa_id, Cbor.encode(body)) do
@@ -65,8 +68,7 @@ defmodule Ypy.Mural.Store do
     commit(repo, keys, tekoa_id, tipo, payload, data_fn, @max_attempts)
   end
 
-  defp commit(_repo, _keys, _tekoa_id, _tipo, _payload, _data_fn, 0),
-    do: {:error, :chain_conflict}
+  defp commit(_repo, _keys, _tekoa_id, _tipo, _payload, _data_fn, 0), do: {:error, :chain_conflict}
 
   defp commit(repo, keys, tekoa_id, tipo, payload, data_fn, attempts) do
     case repo.transaction(fn ->

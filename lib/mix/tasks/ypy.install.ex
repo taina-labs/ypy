@@ -1,4 +1,6 @@
 defmodule Mix.Tasks.Ypy.Install do
+  @shortdoc "Copia as migracoes do kernel Ypy para o produto"
+
   @moduledoc """
   Copia as migracoes do kernel para o repositorio do produto.
 
@@ -17,8 +19,6 @@ defmodule Mix.Tasks.Ypy.Install do
   """
 
   use Mix.Task
-
-  @shortdoc "Copia as migracoes do kernel Ypy para o produto"
 
   @requirements ["app.config"]
 
@@ -39,7 +39,7 @@ defmodule Mix.Tasks.Ypy.Install do
     |> Enum.each(&copiar(&1, destino))
   end
 
-  defp arquivos(origem), do: Path.wildcard(Path.join(origem, "*.exs")) |> Enum.sort()
+  defp arquivos(origem), do: origem |> Path.join("*.exs") |> Path.wildcard() |> Enum.sort()
 
   defp copiar(arquivo, destino) do
     nome = Path.basename(arquivo)
@@ -57,9 +57,7 @@ defmodule Mix.Tasks.Ypy.Install do
           if File.read!(caminho) != conteudo do
             File.write!(caminho, conteudo)
 
-            Mix.shell().info(
-              "* atualizando #{caminho} (a versao #{versao} ja existia com outro conteudo)"
-            )
+            Mix.shell().info("* atualizando #{caminho} (a versao #{versao} ja existia com outro conteudo)")
           end
         end)
     end

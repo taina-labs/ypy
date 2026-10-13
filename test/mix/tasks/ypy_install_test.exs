@@ -7,7 +7,7 @@ defmodule Mix.Tasks.Ypy.InstallTest do
 
   @tag :tmp_dir
   test "copia as migracoes do kernel com a versao preservada", %{tmp_dir: tmp} do
-    Mix.Task.rerun("ypy.install", ["--migrations-path", tmp])
+    capture_io(fn -> Mix.Task.rerun("ypy.install", ["--migrations-path", tmp]) end)
 
     assert File.ls!(tmp) == [@migracao]
     assert File.read!(Path.join(tmp, @migracao)) == File.read!(Path.join(origem(), @migracao))
@@ -15,7 +15,7 @@ defmodule Mix.Tasks.Ypy.InstallTest do
 
   @tag :tmp_dir
   test "rodar de novo nao duplica nem avisa", %{tmp_dir: tmp} do
-    Mix.Task.rerun("ypy.install", ["--migrations-path", tmp])
+    capture_io(fn -> Mix.Task.rerun("ypy.install", ["--migrations-path", tmp]) end)
 
     saida =
       capture_io(fn ->

@@ -1,12 +1,19 @@
 defmodule Ypy.Ybira.PersistenceTest do
   use Ypy.PersistenceCase, async: false
 
-  alias Ypy.{BlobStore, BrokenKeys, Cid, Scope}
-  alias Ypy.Ybira
-
   import Ypy.Factories
 
+  alias Ypy.BlobStore
+  alias Ypy.BrokenKeys
+  alias Ypy.Cid
+  alias Ypy.Mural.Store
+  alias Ypy.Scope
+  alias Ypy.Ybira
+  alias Ypy.Ybira.Blob
+
   @mime "image/jpeg"
+
+  ## Upload
 
   setup do
     {tekoa, keys} = nova_tekoa(TestRepo)
@@ -22,8 +29,6 @@ defmodule Ypy.Ybira.PersistenceTest do
       outro_scope: %Scope{ava: outro, tekoa: tekoa}
     }
   end
-
-  ## Upload
 
   test "o upload completo: blob, record, arquivo, cota e entrada na cadeia", ctx do
     {path, dados} = arquivo("conteudo da foto")
@@ -72,9 +77,8 @@ defmodule Ypy.Ybira.PersistenceTest do
   test "mime fora da allowlist e recusado", ctx do
     {path, _dados} = arquivo("MZ executavel")
 
-    assert Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path,
-             mime: "application/x-msdownload"
-           ) == {:error, :mime_not_allowed}
+    assert Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path, mime: "application/x-msdownload") ==
+             {:error, :mime_not_allowed}
 
     # A allowlist e estendivel por chamada.
     assert {:ok, _} =
@@ -94,7 +98,7 @@ defmodule Ypy.Ybira.PersistenceTest do
              {:error, :storage_quota_exceeded}
 
     assert Ypy.Mural.entradas(TestRepo, tekoa.id) == []
-    assert TestRepo.aggregate(Ypy.Ybira.Blob, :count) == 0
+    assert TestRepo.aggregate(Blob, :count) == 0
   end
 
   test "upload de bytes iguais deduplica o blob, mas cota conta por arquivo", ctx do
@@ -110,7 +114,7 @@ defmodule Ypy.Ybira.PersistenceTest do
       )
 
     assert file1.blob_cid == file2.blob_cid
-    assert TestRepo.aggregate(Ypy.Ybira.Blob, :count) == 1
+    assert TestRepo.aggregate(Blob, :count) == 1
 
     tekoa = TestRepo.reload!(ctx.tekoa)
     assert tekoa.storage_used_bytes == 2 * byte_size(dados)
@@ -147,8 +151,6 @@ defmodule Ypy.Ybira.PersistenceTest do
     assert Ypy.Mural.entradas(TestRepo, ctx.tekoa.id) == []
   end
 
-  ## Leitura (a regra das duas zonas sobre linhas reais)
-
   test "a matriz de leitura: praca, dono, concessao e casa alheia", ctx do
     {path, _dados} = arquivo("foto da festa")
 
@@ -163,6 +165,8 @@ defmodule Ypy.Ybira.PersistenceTest do
     # De volta para a casa, o outro morador para de ler.
     {:ok, _} = Ybira.tirar_da_praca(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", casa.rkey)
     assert Ybira.get_file(TestRepo, ctx.outro_scope, casa.rkey) == {:error, :forbidden}
+
+    ## Leitura (a regra das duas zonas sobre linhas reais)
 
     # O dono concede; o leitor passa a ler; revogada, volta o proibido.
     {:ok, concessao} =
@@ -181,8 +185,6 @@ defmodule Ypy.Ybira.PersistenceTest do
     # Rkey que nao existe e not_found, diferente de proibido.
     assert Ybira.get_file(TestRepo, ctx.dono_scope, "zzzzzzzzzzzzz") == {:error, :not_found}
   end
-
-  ## Listagens
 
   test "a listagem so mostra o legivel e pagina pelo rkey", ctx do
     {path, _dados} = arquivo("conteudo")
@@ -204,8 +206,11 @@ defmodule Ypy.Ybira.PersistenceTest do
 
     # Cursor: os rkeys menores que o maior.
     pagina2 =
-      Ybira.list_files(TestRepo, ctx.outro_scope, cursor: Enum.max(rkeys))
+      TestRepo
+      |> Ybira.list_files(ctx.outro_scope, cursor: Enum.max(rkeys))
       |> Enum.map(& &1.rkey)
+
+    ## Listagens
 
     assert pagina2 == [Enum.min(rkeys)]
 
@@ -213,8 +218,6 @@ defmodule Ypy.Ybira.PersistenceTest do
     praca = Enum.map(Ybira.list_files(TestRepo, ctx.outro_scope, zona: :praca), & &1.rkey)
     assert praca == [meu.rkey]
   end
-
-  ## Pastas
 
   test "a pasta nasce, lista e obedece a regra de leitura", ctx do
     {:ok, pasta} = Ybira.criar_pasta(TestRepo, ctx.keys, ctx.dono_scope, "documentos")
@@ -233,8 +236,6 @@ defmodule Ypy.Ybira.PersistenceTest do
     assert ids == [dentro.id]
   end
 
-  ## Lixeira
-
   test "apagar, ver a lixeira e restaurar; cadeia anota os dois atos", ctx do
     {path, _dados} = arquivo("para a lixeira")
 
@@ -244,13 +245,14 @@ defmodule Ypy.Ybira.PersistenceTest do
              {:error, :not_owner}
 
     {:ok, apagado} = Ybira.apagar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", file.rkey)
-    assert apagado.apagado_em != nil
+    assert apagado.apagado_em
 
     # Fora da listagem corrente, presente na lixeira, e not_found para leitura.
     assert Ybira.list_files(TestRepo, ctx.dono_scope) == []
     assert [_] = Ybira.list_files(TestRepo, ctx.dono_scope, lixeira: true)
     assert Ybira.get_file(TestRepo, ctx.dono_scope, file.rkey) == {:error, :not_found}
 
+    ## Pastas
     {:ok, restaurado} =
       Ybira.restaurar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", file.rkey)
 
@@ -262,8 +264,6 @@ defmodule Ypy.Ybira.PersistenceTest do
     tipos = Enum.map(Ypy.Mural.entradas(TestRepo, ctx.tekoa.id), & &1.tipo)
     assert tipos == ["put", "apagar", "restaurar"]
   end
-
-  ## Zona
 
   test "publicar e tirar da praca sao idempotentes e so o dono muda", ctx do
     {path, _dados} = arquivo("conteudo")
@@ -279,18 +279,17 @@ defmodule Ypy.Ybira.PersistenceTest do
     assert publicado.zona == :praca
 
     # No-op idempotente: a mesma zona devolve o arquivo, sem entrada nova.
-    seq_antes = Ypy.Mural.Store.head(TestRepo, ctx.tekoa.id).seq
+    seq_antes = Store.head(TestRepo, ctx.tekoa.id).seq
     {:ok, mesmo} = Ybira.publicar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", file.rkey)
     assert mesmo.zona == :praca
-    assert Ypy.Mural.Store.head(TestRepo, ctx.tekoa.id).seq == seq_antes
+    assert Store.head(TestRepo, ctx.tekoa.id).seq == seq_antes
 
+    ## Lixeira
     {:ok, de_volta} =
       Ybira.tirar_da_praca(TestRepo, ctx.keys, ctx.dono_scope, "ypy.file.v0", file.rkey)
 
     assert de_volta.zona == :casa
   end
-
-  ## Move e rename
 
   test "mover entre pastas renova o envelope e mantem os bytes", ctx do
     {path, dados} = arquivo("conteudo")
@@ -340,6 +339,7 @@ defmodule Ypy.Ybira.PersistenceTest do
     {:ok, file} =
       Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path,
         mime: @mime,
+        ## Zona
         nome: "velho.jpg"
       )
 
@@ -366,6 +366,7 @@ defmodule Ypy.Ybira.PersistenceTest do
     {:ok, pasta_alheia} = Ybira.criar_pasta(TestRepo, ctx.keys, ctx.outro_scope, "dele")
     {path, _dados} = arquivo("conteudo")
 
+    ## Move e rename
     {:ok, file} = Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path, mime: @mime)
 
     assert Ybira.mover(TestRepo, ctx.keys, ctx.dono_scope, file.rkey, pasta_alheia.rkey) ==
@@ -381,8 +382,6 @@ defmodule Ypy.Ybira.PersistenceTest do
     {:ok, _} = Ybira.publicar(TestRepo, ctx.keys, ctx.dono_scope, "ypy.folder.v0", pasta.rkey)
     {:ok, _} = Ybira.get_folder(TestRepo, ctx.outro_scope, pasta.rkey)
   end
-
-  ## Atomicidade do ledger
 
   test "falha de cadeia desfaz a escrita do dado", ctx do
     quebradas = BrokenKeys.new(dir_temporario("keys-quebradas"))
@@ -436,7 +435,8 @@ defmodule Ypy.Ybira.PersistenceTest do
     assert Ypy.Mural.verificar_cadeia(TestRepo, ctx.tekoa.id) == :ok
 
     tipos =
-      Ypy.Mural.entradas(TestRepo, ctx.tekoa.id)
+      TestRepo
+      |> Ypy.Mural.entradas(ctx.tekoa.id)
       |> Enum.map(& &1.tipo)
 
     assert tipos == ["put", "put", "mover", "publicar", "renomear", "apagar", "restaurar"]
@@ -462,4 +462,6 @@ defmodule Ypy.Ybira.PersistenceTest do
   defp recarrega_lexicons do
     Ypy.Lexicon.Registry.load([Path.join(File.cwd!(), "priv/lexicons")])
   end
+
+  ## Atomicidade do ledger
 end

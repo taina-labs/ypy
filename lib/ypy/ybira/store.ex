@@ -6,7 +6,10 @@ defmodule Ypy.Ybira.Store do
 
   import Ecto.Query, only: [from: 2, where: 3]
 
-  alias Ypy.Ybira.{Blob, File, Folder, Queries}
+  alias Ypy.Ybira.Blob
+  alias Ypy.Ybira.File
+  alias Ypy.Ybira.Folder
+  alias Ypy.Ybira.Queries
 
   @doc "O arquivo pelo rkey; lixeira so com opt-in."
   def get_file(repo, tekoa_id, rkey, lixeira? \\ false) do

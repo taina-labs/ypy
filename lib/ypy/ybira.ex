@@ -9,13 +9,23 @@ defmodule Ypy.Ybira do
   que commitou tem entrada na cadeia.
   """
 
-  alias Ypy.{BlobStore, Cid, KeyStore, Mural, Record, Scope}
+  alias Ypy.BlobStore
+  alias Ypy.Cid
+  alias Ypy.KeyStore
   alias Ypy.Lexicon.Registry
   alias Ypy.Lexicon.Validate
   alias Ypy.Maraca.Policy
   alias Ypy.Maraca.Store, as: MaracaStore
-  alias Ypy.Ybira.{Blob, File, Folder, Queries, Store}
+  alias Ypy.Mural
+  alias Ypy.Record
+  alias Ypy.Scope
+  ## Recurso generico (arquivo ou pasta)
+  alias Ypy.Ybira.Blob
+  alias Ypy.Ybira.File
+  alias Ypy.Ybira.Folder
+  alias Ypy.Ybira.Queries
   alias Ypy.Ybira.Record, as: RecordRow
+  alias Ypy.Ybira.Store
 
   @max_attempts 3
 
@@ -31,8 +41,6 @@ defmodule Ypy.Ybira do
 
   @tipos %{"ypy.file.v0" => File, "ypy.folder.v0" => Folder}
 
-  ## Recurso generico (arquivo ou pasta)
-
   @doc """
   Resolve o recurso pelo tipo de colecao e rkey; lixeira so com opt-in.
   Devolve {:ok, recurso}, {:error, :not_found} ou {:error, :invalid_tipo}.
@@ -40,6 +48,8 @@ defmodule Ypy.Ybira do
   @spec recurso(Ecto.Repo.t(), integer(), String.t(), String.t(), boolean()) ::
           {:ok, File.t() | Folder.t()} | {:error, :not_found | :invalid_tipo}
   def recurso(repo, tekoa_id, tipo, rkey, lixeira? \\ false)
+
+  ## Arquivos
 
   def recurso(repo, tekoa_id, tipo, rkey, lixeira?) when is_map_key(@tipos, tipo) do
     row =
@@ -56,9 +66,8 @@ defmodule Ypy.Ybira do
   @doc "A regra de leitura sobre o recurso resolvido: praca OU dono OU concessao."
   @spec readable?(Ecto.Repo.t(), Scope.t(), String.t(), String.t()) :: boolean()
   def readable?(repo, %Scope{} = scope, tipo, rkey) do
-    with {:ok, row} <- recurso(repo, scope.tekoa.id, tipo, rkey) do
-      read_rule?(repo, scope, row)
-    else
+    case recurso(repo, scope.tekoa.id, tipo, rkey) do
+      {:ok, row} -> read_rule?(repo, scope, row)
       {:error, _} -> false
     end
   end
@@ -68,8 +77,6 @@ defmodule Ypy.Ybira do
   def owner?(repo, tekoa_id, tipo, rkey, ava_id) do
     match?({:ok, %{dono_id: ^ava_id}}, recurso(repo, tekoa_id, tipo, rkey))
   end
-
-  ## Arquivos
 
   @doc """
   O upload (RFC_005 secao 8): le `path`, confere cota e MIME, poem os bytes
@@ -117,6 +124,7 @@ defmodule Ypy.Ybira do
     get_readable(repo, scope, "ypy.file.v0", rkey)
   end
 
+  ## Lixeira
   @doc "A pasta pelo rkey, sob a regra de leitura."
   @spec get_folder(Ecto.Repo.t(), Scope.t(), String.t()) ::
           {:ok, Folder.t()} | {:error, :not_found | :forbidden}
@@ -138,6 +146,7 @@ defmodule Ypy.Ybira do
           |> Queries.files(Keyword.put(opts, :folder, folder && folder.id))
           |> Queries.readable(scope)
 
+        ## Zona
         Store.all(repo, query)
 
       {:error, _} ->
@@ -155,14 +164,14 @@ defmodule Ypy.Ybira do
           |> Queries.folders(Keyword.put(opts, :parent, parent && parent.id))
           |> Queries.readable_folder(scope)
 
+        ## Move e rename
+
         Store.all(repo, query)
 
       {:error, _} ->
         []
     end
   end
-
-  ## Lixeira
 
   @doc "Manda o recurso para a lixeira (soft delete). So o dono."
   @spec apagar(Ecto.Repo.t(), KeyStore.t(), Scope.t(), String.t(), String.t()) ::
@@ -188,7 +197,7 @@ defmodule Ypy.Ybira do
     end
   end
 
-  ## Zona
+  ## Internos
 
   @doc """
   Publica na praca (RFC_003 secao 2): colocar na praca E o ato de
@@ -206,8 +215,6 @@ defmodule Ypy.Ybira do
   def tirar_da_praca(repo, keys, %Scope{} = scope, tipo, rkey) do
     mudar_zona(repo, keys, scope, tipo, rkey, :casa, "tirar_da_praca")
   end
-
-  ## Move e rename
 
   @doc """
   Move o arquivo para a pasta de rkey dado (ou nil, para solto). A pasta de
@@ -244,8 +251,6 @@ defmodule Ypy.Ybira do
     end
   end
 
-  ## Internos
-
   defp get_readable(repo, scope, tipo, rkey) do
     with {:ok, row} <- recurso(repo, scope.tekoa.id, tipo, rkey) do
       if read_rule?(repo, scope, row), do: {:ok, row}, else: {:error, :forbidden}
@@ -278,8 +283,7 @@ defmodule Ypy.Ybira do
 
   defp quota_ok?(_repo, %{storage_quota_bytes: nil}, _size), do: :ok
 
-  defp quota_ok?(_repo, %{storage_quota_bytes: quota, storage_used_bytes: used}, size)
-       when is_integer(quota) do
+  defp quota_ok?(_repo, %{storage_quota_bytes: quota, storage_used_bytes: used}, size) when is_integer(quota) do
     if used + size > quota, do: {:error, :storage_quota_exceeded}, else: :ok
   end
 
@@ -305,7 +309,8 @@ defmodule Ypy.Ybira do
   end
 
   defp file_payload(nome, folder_rkey, mime, size, blob) do
-    file_payload(nome, nil, mime, size, blob)
+    nome
+    |> file_payload(nil, mime, size, blob)
     |> Map.put("folder", folder_rkey)
   end
 
@@ -355,11 +360,8 @@ defmodule Ypy.Ybira do
       },
       fn ->
         with {:ok, _} <-
-               commit_record(repo, scope, row.rkey, tipo, cid, wire),
-             {:ok, novo} <- repo.update(changeset_fn.(row)) do
-          {:ok, novo}
-        else
-          {:error, reason} -> {:error, reason}
+               commit_record(repo, scope, row.rkey, tipo, cid, wire) do
+          repo.update(changeset_fn.(row))
         end
       end
     )
@@ -407,34 +409,10 @@ defmodule Ypy.Ybira do
     end
   end
 
-  defp commit_upload_rows(
-         _repo,
-         _keys,
-         _scope,
-         _tekoa,
-         _blob_cid,
-         _data,
-         _size,
-         _mime,
-         _nome,
-         _folder,
-         0
-       ),
-       do: {:error, :rkey_conflict}
+  defp commit_upload_rows(_repo, _keys, _scope, _tekoa, _blob_cid, _data, _size, _mime, _nome, _folder, 0),
+    do: {:error, :rkey_conflict}
 
-  defp commit_upload_rows(
-         repo,
-         keys,
-         scope,
-         tekoa,
-         blob_cid,
-         data,
-         size,
-         mime,
-         nome,
-         folder,
-         attempts
-       ) do
+  defp commit_upload_rows(repo, keys, scope, tekoa, blob_cid, data, size, mime, nome, folder, attempts) do
     rkey = File.next_rkey()
     actor = "#{scope.ava.username}@#{tekoa.domain}"
     blob = Cid.to_string(blob_cid)
@@ -488,8 +466,6 @@ defmodule Ypy.Ybira do
                  ),
                :ok <- MaracaStore.add_storage(repo, tekoa.id, size) do
             {:ok, file}
-          else
-            {:error, reason} -> {:error, reason}
           end
         end)
 
@@ -555,53 +531,51 @@ defmodule Ypy.Ybira do
     rkey = Folder.next_rkey()
     actor = "#{scope.ava.username}@#{scope.tekoa.domain}"
 
-    with {:ok, {cid_string, wire}} <- versao("ypy.folder.v0", rkey, actor, %{"name" => nome}) do
-      entrada = %{
-        "actor" => scope.ava.public_id,
-        "collection" => "ypy.folder.v0",
-        "rkey" => rkey,
-        "cid" => cid_string
-      }
+    case versao("ypy.folder.v0", rkey, actor, %{"name" => nome}) do
+      {:ok, {cid_string, wire}} ->
+        entrada = %{
+          "actor" => scope.ava.public_id,
+          "collection" => "ypy.folder.v0",
+          "rkey" => rkey,
+          "cid" => cid_string
+        }
 
-      result =
-        Mural.Store.commit(repo, keys, scope.tekoa.id, "put", entrada, fn ->
-          with {:ok, _} <-
-                 commit_record(repo, scope, rkey, "ypy.folder.v0", cid_string, wire),
-               {:ok, folder} <-
-                 Store.insert_folder(
-                   repo,
-                   Folder.changeset(%Folder{}, %{
-                     tekoa_id: scope.tekoa.id,
-                     dono_id: scope.ava.id,
-                     rkey: rkey,
-                     cid: cid_string,
-                     nome: nome,
-                     zona: :casa,
-                     parent_id: parent && parent.id
-                   })
-                 ) do
+        result =
+          Mural.Store.commit(repo, keys, scope.tekoa.id, "put", entrada, fn ->
+            with {:ok, _} <-
+                   commit_record(repo, scope, rkey, "ypy.folder.v0", cid_string, wire) do
+              Store.insert_folder(
+                repo,
+                Folder.changeset(%Folder{}, %{
+                  tekoa_id: scope.tekoa.id,
+                  dono_id: scope.ava.id,
+                  rkey: rkey,
+                  cid: cid_string,
+                  nome: nome,
+                  zona: :casa,
+                  parent_id: parent && parent.id
+                })
+              )
+            end
+          end)
+
+        case result do
+          {:ok, folder} ->
             {:ok, folder}
-          else
-            {:error, reason} -> {:error, reason}
-          end
-        end)
 
-      case result do
-        {:ok, folder} ->
-          {:ok, folder}
+          {:error, %Ecto.Changeset{} = changeset} ->
+            if unique_conflict?(changeset) and attempts > 1 do
+              commit_folder(repo, keys, scope, nome, parent, attempts - 1)
+            else
+              {:error, changeset}
+            end
 
-        {:error, %Ecto.Changeset{} = changeset} ->
-          if unique_conflict?(changeset) and attempts > 1 do
-            commit_folder(repo, keys, scope, nome, parent, attempts - 1)
-          else
-            {:error, changeset}
-          end
+          {:error, reason} ->
+            {:error, reason}
+        end
 
-        {:error, reason} ->
-          {:error, reason}
-      end
-    else
-      {:error, reason} -> {:error, {:envelope_invalido, reason}}
+      {:error, reason} ->
+        {:error, {:envelope_invalido, reason}}
     end
   end
 
@@ -626,7 +600,7 @@ defmodule Ypy.Ybira do
         "rkey" => row.rkey
       },
       fn ->
-        aplicar.(row, DateTime.utc_now() |> DateTime.truncate(:second))
+        aplicar.(row, DateTime.truncate(DateTime.utc_now(), :second))
       end
     )
   end
@@ -682,7 +656,7 @@ defmodule Ypy.Ybira do
     }
   end
 
-  defp sha256(data), do: :crypto.hash(:sha256, data) |> Base.encode16(case: :lower)
+  defp sha256(data), do: :sha256 |> :crypto.hash(data) |> Base.encode16(case: :lower)
 
   defp now_micros, do: System.os_time(:microsecond)
 

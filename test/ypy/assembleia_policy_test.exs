@@ -44,8 +44,8 @@ defmodule Ypy.Assembleia.PolicyTest do
   test "expiry passes exactly at the turn of the deadline" do
     fecha = DateTime.from_naive!(~N[2026-06-01 10:00:00], "Etc/UTC")
 
-    refute Policy.expired?(fecha, DateTime.add(fecha, -1))
+    refute Policy.expired?(fecha, DateTime.shift(fecha, second: -1))
     refute Policy.expired?(fecha, fecha)
-    assert Policy.expired?(fecha, DateTime.add(fecha, 1))
+    assert Policy.expired?(fecha, DateTime.shift(fecha, second: 1))
   end
 end

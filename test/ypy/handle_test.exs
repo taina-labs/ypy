@@ -108,7 +108,7 @@ defmodule Ypy.HandleTest do
             ),
           last <- StreamData.member_of(~c"abcdefghijklmnopqrstuvwxyz0123456789")
         ) do
-      ([first | middle] ++ [last]) |> List.to_string()
+      List.to_string([first | middle] ++ [last])
     end
   end
 end

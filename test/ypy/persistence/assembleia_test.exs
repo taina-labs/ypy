@@ -1,10 +1,10 @@
 defmodule Ypy.Assembleia.PersistenceTest do
   use Ypy.PersistenceCase, async: false
 
+  import Ypy.Factories
+
   alias Ypy.Assembleia
   alias Ypy.Scope
-
-  import Ypy.Factories
 
   setup do
     {tekoa, _keys} = nova_tekoa(TestRepo)
@@ -23,16 +23,10 @@ defmodule Ypy.Assembleia.PersistenceTest do
     }
   end
 
-  defp abrir(
-         _ctx,
-         scope,
-         tipo \\ :remover_morador,
-         payload \\ %{"morador" => "public123"},
-         prazos \\ []
-       ) do
+  defp abrir(_ctx, scope, tipo \\ :remover_morador, payload \\ %{"morador" => "public123"}, prazos \\ []) do
     fecha_em =
       DateTime.utc_now()
-      |> DateTime.add(Keyword.get(prazos, :dias, 7) * 24 * 3600)
+      |> DateTime.shift(day: Keyword.get(prazos, :dias, 7))
       |> DateTime.truncate(:second)
 
     Assembleia.abrir(TestRepo, scope, tipo, payload, fecha_em: fecha_em)
@@ -62,7 +56,7 @@ defmodule Ypy.Assembleia.PersistenceTest do
     assert Assembleia.fechar(TestRepo, ctx.tekoa.id, proposta) == {:error, :invalid_status}
 
     {:ok, executada} = Assembleia.executar(TestRepo, ctx.tekoa.id, fechada)
-    assert executada.executado_em != nil
+    assert executada.executado_em
 
     # A reclamacao unica: o ato aprovado so roda uma vez.
     assert Assembleia.executar(TestRepo, ctx.tekoa.id, fechada) == {:error, :already_executed}
@@ -75,7 +69,7 @@ defmodule Ypy.Assembleia.PersistenceTest do
     {:ok, proposta} = abrir(ctx, ctx.a_scope)
     {:ok, _} = Assembleia.votar(TestRepo, ctx.a_scope, proposta, :sim)
 
-    assert Assembleia.Store.escolhas(TestRepo, ctx.tekoa.id, proposta.id) |> length() == 1
+    assert TestRepo |> Assembleia.Store.escolhas(ctx.tekoa.id, proposta.id) |> length() == 1
     assert Ypy.Maraca.Store.count_moradores(TestRepo, ctx.tekoa.id) == 4
 
     {:ok, fechada} = Assembleia.fechar(TestRepo, ctx.tekoa.id, proposta)

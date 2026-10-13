@@ -42,9 +42,8 @@ defmodule Ypy.KeyStore.Files do
     case :file.open(path(store, tekoa_id), [:write, :exclusive]) do
       {:ok, device} ->
         with :ok <- :file.write(device, priv),
-             :ok <- :file.close(device),
-             :ok <- File.chmod(path(store, tekoa_id), 0o600) do
-          :ok
+             :ok <- :file.close(device) do
+          File.chmod(path(store, tekoa_id), 0o600)
         end
 
       {:error, :eexist} ->
@@ -62,9 +61,8 @@ defmodule Ypy.KeyStore.Files do
     temp = target <> ".tmp-#{System.unique_integer([:positive])}"
 
     with :ok <- File.write(temp, priv),
-         :ok <- File.chmod(temp, 0o600),
-         :ok <- File.rename(temp, target) do
-      :ok
+         :ok <- File.chmod(temp, 0o600) do
+      File.rename(temp, target)
     end
   end
 

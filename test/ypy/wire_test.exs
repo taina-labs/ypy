@@ -7,6 +7,7 @@ defmodule Ypy.WireTest do
   alias Ypy.Wire.Errors
   alias Ypy.Wire.File
   alias Ypy.Wire.Mural
+  alias Ypy.Ybira.Folder
 
   @agora 1_700_000_000_000_000
 
@@ -102,7 +103,7 @@ defmodule Ypy.WireTest do
   end
 
   test "a pasta pai sem preload sai null, e a lixeira sai como deleted_at" do
-    trashed = %Ypy.Ybira.File{file() | folder: nil, apagado_em: ~U[2026-10-12 13:00:00Z]}
+    trashed = %{file() | folder: nil, apagado_em: ~U[2026-10-12 13:00:00Z]}
 
     map = File.json(trashed)
 
@@ -111,12 +112,12 @@ defmodule Ypy.WireTest do
   end
 
   test "o mapa da pasta leva a pasta de cima pelo rkey e a zona" do
-    folder = %Ypy.Ybira.Folder{
+    folder = %Folder{
       rkey: folder_rkey(),
       cid: cid(),
       nome: "Fotos",
       zona: :praca,
-      parent: %Ypy.Ybira.Folder{rkey: rkey()},
+      parent: %Folder{rkey: rkey()},
       inserted_at: ~U[2026-10-12 12:00:00Z],
       updated_at: ~U[2026-10-12 12:00:00Z]
     }
@@ -193,7 +194,7 @@ defmodule Ypy.WireTest do
       tamanho: 1024,
       hash: hash(),
       zona: :casa,
-      folder: %Ypy.Ybira.Folder{rkey: folder_rkey()},
+      folder: %Folder{rkey: folder_rkey()},
       inserted_at: ~U[2026-10-12 12:00:00Z],
       updated_at: ~U[2026-10-12 12:00:00Z]
     }
@@ -209,7 +210,7 @@ defmodule Ypy.WireTest do
     rkey
   end
 
-  defp cid, do: Ypy.Cid.from_data("amostra") |> Ypy.Cid.to_string()
+  defp cid, do: "amostra" |> Ypy.Cid.from_data() |> Ypy.Cid.to_string()
 
   defp hash, do: String.duplicate("0f", 32)
 end

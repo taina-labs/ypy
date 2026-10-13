@@ -9,7 +9,8 @@ defmodule Ypy.Ybira.Queries do
 
   alias Ypy.Maraca.Concessao
   alias Ypy.Scope
-  alias Ypy.Ybira.{File, Folder}
+  alias Ypy.Ybira.File
+  alias Ypy.Ybira.Folder
 
   @doc "Arquivos nao apagados de uma Tekoa, mais recentes primeiro."
   def files(tekoa_id, opts \\ []) do

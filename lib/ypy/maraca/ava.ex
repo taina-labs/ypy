@@ -100,7 +100,7 @@ defmodule Ypy.Maraca.Ava do
     |> validate_username()
     |> validate_length(:password, min: 8)
     |> hash_password()
-    |> put_change(:activated_at, DateTime.utc_now() |> DateTime.truncate(:second))
+    |> put_change(:activated_at, DateTime.truncate(DateTime.utc_now(), :second))
     |> put_change(:invite_token_hash, nil)
     |> put_change(:invite_sent_at, nil)
     |> unique_constraint(:username, name: :maraca_avas_tekoa_id_username_index)
@@ -156,8 +156,6 @@ defmodule Ypy.Maraca.Ava do
       username -> username |> String.trim() |> String.downcase()
     end)
     |> validate_length(:username, min: 3, max: 50)
-    |> validate_format(:username, @username_format,
-      message: "use so minusculas, numeros, ponto, hifen ou underline"
-    )
+    |> validate_format(:username, @username_format, message: "use so minusculas, numeros, ponto, hifen ou underline")
   end
 end

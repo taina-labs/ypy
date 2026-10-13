@@ -56,7 +56,7 @@ defmodule Ypy.RecordTest do
 
     test "raises on an unknown or missing attr" do
       assert_raise ArgumentError, fn ->
-        Record.build(Keyword.drop(@attrs, [:payload]))
+        Record.build(Keyword.delete(@attrs, :payload))
       end
 
       assert_raise KeyError, fn ->
@@ -124,7 +124,7 @@ defmodule Ypy.RecordTest do
 
     assert Record.decode(Cbor.encode(sem_payload)) == {:error, :malformed}
 
-    com_extra = Map.put(sem_payload, "payload", %{}) |> Map.put("extra", 1)
+    com_extra = sem_payload |> Map.put("payload", %{}) |> Map.put("extra", 1)
 
     assert Record.decode(Cbor.encode(com_extra)) == {:error, :malformed}
   end
