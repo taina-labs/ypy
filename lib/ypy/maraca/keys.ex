@@ -45,7 +45,8 @@ defmodule Ypy.Maraca.Keys do
   com a chave publica comprimida. Ponto publico malformado devolve false:
   o dado vem da cadeia e pode ser adulterado.
   """
-  def verify(pub, sig, payload) when byte_size(pub) == @pub_size and byte_size(sig) == @sig_size and is_binary(payload) do
+  def verify(pub, sig, payload)
+      when byte_size(pub) == @pub_size and byte_size(sig) == @sig_size and is_binary(payload) do
     der = Secp256k1.raw_to_der(sig)
     :crypto.verify(:ecdsa, :sha256, payload, der, [pub, :secp256k1])
   rescue

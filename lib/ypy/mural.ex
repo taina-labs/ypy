@@ -43,7 +43,9 @@ defmodule Ypy.Mural do
 
   @doc "Os bytes DAG-CBOR canonicos da entrada completa, com a assinatura como byte string."
   @spec encode_entry(entry()) :: binary()
-  def encode_entry(%{"seq" => _, "prev" => _, "payload" => payload, "signature" => signature} = entry)
+  def encode_entry(
+        %{"seq" => _, "prev" => _, "payload" => payload, "signature" => signature} = entry
+      )
       when is_map(payload) and is_binary(signature) do
     Cbor.encode(Map.put(entry, "signature", %Cbor.Bytes{data: signature}))
   end
@@ -72,7 +74,8 @@ defmodule Ypy.Mural do
   :bad_signature.
   """
   @spec verify_chain(binary(), [entry()]) :: :ok | {:error, {non_neg_integer(), atom()}}
-  def verify_chain(pub, entries) when is_binary(pub) and is_list(entries), do: verify_chain(pub, entries, 0, 1, nil)
+  def verify_chain(pub, entries) when is_binary(pub) and is_list(entries),
+    do: verify_chain(pub, entries, 0, 1, nil)
 
   defp verify_chain(_pub, [], _index, _expected_seq, _expected_prev), do: :ok
 
@@ -93,12 +96,14 @@ defmodule Ypy.Mural do
   # A partir daqui a cadeia e lida do banco, com o repo sempre como primeiro
   # argumento (RFC_006 D4). A matematica acima continua pura: verificar uma
   # cadeia exportada nunca precisa de repo.
-  defp body(%{"seq" => seq, "prev" => prev, "payload" => payload}) when is_integer(seq) and is_map(payload),
-    do: Cbor.encode(%{"seq" => seq, "prev" => prev, "payload" => payload})
+  defp body(%{"seq" => seq, "prev" => prev, "payload" => payload})
+       when is_integer(seq) and is_map(payload),
+       do: Cbor.encode(%{"seq" => seq, "prev" => prev, "payload" => payload})
 
   defp body(_), do: :error
 
-  defp check_signature(pub, bytes, %{"signature" => sig}) when is_binary(sig) and byte_size(sig) == 64 do
+  defp check_signature(pub, bytes, %{"signature" => sig})
+       when is_binary(sig) and byte_size(sig) == 64 do
     if :crypto.verify(:ecdsa, :sha256, bytes, Secp256k1.raw_to_der(sig), [pub, :secp256k1]),
       do: :ok,
       else: {:error, :bad_signature}

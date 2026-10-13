@@ -23,7 +23,13 @@ defmodule Ypy.Assembleia.PersistenceTest do
     }
   end
 
-  defp abrir(_ctx, scope, tipo \\ :remover_morador, payload \\ %{"morador" => "public123"}, prazos \\ []) do
+  defp abrir(
+         _ctx,
+         scope,
+         tipo \\ :remover_morador,
+         payload \\ %{"morador" => "public123"},
+         prazos \\ []
+       ) do
     fecha_em =
       DateTime.utc_now()
       |> DateTime.shift(day: Keyword.get(prazos, :dias, 7))

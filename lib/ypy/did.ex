@@ -42,7 +42,8 @@ defmodule Ypy.Did do
   publica da Tekoa em multibase Multikey, a mesma que assina a cadeia.
   O produto serve o resultado em `/.well-known/did.json`.
   """
-  def document("did:web:" <> _ = did, public_key_multibase) when is_binary(public_key_multibase) do
+  def document("did:web:" <> _ = did, public_key_multibase)
+      when is_binary(public_key_multibase) do
     method_id = did <> "#tekoa"
 
     %{

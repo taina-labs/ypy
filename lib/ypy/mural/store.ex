@@ -27,7 +27,8 @@ defmodule Ypy.Mural.Store do
   """
   @spec append(Ecto.Repo.t(), KeyStore.t(), integer(), String.t(), map()) ::
           {:ok, Entry.t()} | {:error, :chain_conflict | term()}
-  def append(repo, keys, tekoa_id, tipo, payload) when is_binary(tipo) and is_map(payload) and is_integer(tekoa_id) do
+  def append(repo, keys, tekoa_id, tipo, payload)
+      when is_binary(tipo) and is_map(payload) and is_integer(tekoa_id) do
     payload = Map.put(payload, "tipo", tipo)
     head = head(repo, tekoa_id)
     seq = next_seq(head)
@@ -74,7 +75,8 @@ defmodule Ypy.Mural.Store do
     commit(repo, keys, tekoa_id, tipo, payload, data_fn, @max_attempts)
   end
 
-  defp commit(_repo, _keys, _tekoa_id, _tipo, _payload, _data_fn, 0), do: {:error, :chain_conflict}
+  defp commit(_repo, _keys, _tekoa_id, _tipo, _payload, _data_fn, 0),
+    do: {:error, :chain_conflict}
 
   defp commit(repo, keys, tekoa_id, tipo, payload, data_fn, attempts) do
     result = repo.transaction(fn -> write(repo, keys, tekoa_id, tipo, payload, data_fn) end)

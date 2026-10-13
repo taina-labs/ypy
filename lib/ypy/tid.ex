@@ -20,7 +20,8 @@ defmodule Ypy.Tid do
   chama, nos 10 bits baixos.
   """
   def next(last, micros, clock_id)
-      when is_integer(last) and last >= 0 and is_integer(micros) and micros >= 0 and is_integer(clock_id) and
+      when is_integer(last) and last >= 0 and is_integer(micros) and micros >= 0 and
+             is_integer(clock_id) and
              clock_id >= 0 and clock_id <= 1023 do
     n = max(last + 1, micros <<< 10 ||| clock_id)
     {encode(n), n}

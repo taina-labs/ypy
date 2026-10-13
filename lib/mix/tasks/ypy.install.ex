@@ -60,7 +60,10 @@ defmodule Mix.Tasks.Ypy.Install do
   defp atualizar(caminho, conteudo, versao) do
     if File.read!(caminho) != conteudo do
       File.write!(caminho, conteudo)
-      Mix.shell().info("* atualizando #{caminho} (a versao #{versao} ja existia com outro conteudo)")
+
+      Mix.shell().info(
+        "* atualizando #{caminho} (a versao #{versao} ja existia com outro conteudo)"
+      )
     end
   end
 

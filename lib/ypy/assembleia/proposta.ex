@@ -56,7 +56,8 @@ defmodule Ypy.Assembleia.Proposta do
   end
 
   @doc "Registra o resultado do escrutinio."
-  def fechar_changeset(proposta, resultado) when resultado in [:aprovada, :rejeitada, :expirada] do
+  def fechar_changeset(proposta, resultado)
+      when resultado in [:aprovada, :rejeitada, :expirada] do
     change(proposta, status: resultado)
   end
 end

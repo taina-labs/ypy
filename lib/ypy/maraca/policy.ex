@@ -45,7 +45,8 @@ defmodule Ypy.Maraca.Policy do
   para qualquer morador; a praca ninguem pede para ler.
   """
   @spec can_read?(:casa | :praca, term(), term(), term(), [map()]) :: boolean()
-  def can_read?(zona, leitor_id, dono_id, recurso, concessoes) when zona in @zonas and is_list(concessoes) do
+  def can_read?(zona, leitor_id, dono_id, recurso, concessoes)
+      when zona in @zonas and is_list(concessoes) do
     zona == :praca or leitor_id == dono_id or
       Enum.any?(concessoes, &concedido?(&1, leitor_id, recurso))
   end

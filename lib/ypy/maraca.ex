@@ -156,7 +156,8 @@ defmodule Ypy.Maraca do
 
   @spec mudar_papel(Ecto.Repo.t(), KeyStore.t(), Scope.t(), Ava.t(), :zelador | :morador) ::
           {:ok, Ava.t()} | {:error, term()}
-  def mudar_papel(repo, keys, %Scope{} = scope, %Ava{id: ava_id}, papel) when papel in [:zelador, :morador] do
+  def mudar_papel(repo, keys, %Scope{} = scope, %Ava{id: ava_id}, papel)
+      when papel in [:zelador, :morador] do
     with :ok <- zelador_guard(scope),
          {:ok, ava} <- ava_atual(repo, scope.tekoa.id, ava_id),
          :ok <- ultimo_zelador_guard(repo, scope, ava, papel) do
@@ -179,24 +180,30 @@ defmodule Ypy.Maraca do
   end
 
   @doc "Os pedidos pendentes que o morador recebeu como dono."
-  def pedidos_recebidos(repo, %Scope{} = scope), do: Store.pedidos_recebidos(repo, scope.tekoa.id, scope.ava.id)
+  def pedidos_recebidos(repo, %Scope{} = scope),
+    do: Store.pedidos_recebidos(repo, scope.tekoa.id, scope.ava.id)
 
   @doc "Os pedidos que o morador fez."
-  def pedidos_enviados(repo, %Scope{} = scope), do: Store.pedidos_enviados(repo, scope.tekoa.id, scope.ava.id)
+  def pedidos_enviados(repo, %Scope{} = scope),
+    do: Store.pedidos_enviados(repo, scope.tekoa.id, scope.ava.id)
 
   @doc "As concessoes que o morador concedeu, ativas e aposentadas."
-  def concessoes_concedidas(repo, %Scope{} = scope), do: Store.concessoes_concedidas(repo, scope.tekoa.id, scope.ava.id)
+  def concessoes_concedidas(repo, %Scope{} = scope),
+    do: Store.concessoes_concedidas(repo, scope.tekoa.id, scope.ava.id)
 
-  defp mesma_tekoa(%Scope{tekoa: %{id: tekoa_id}}, %Ava{tekoa_id: ava_tekoa_id}) when tekoa_id == ava_tekoa_id, do: :ok
+  defp mesma_tekoa(%Scope{tekoa: %{id: tekoa_id}}, %Ava{tekoa_id: ava_tekoa_id})
+       when tekoa_id == ava_tekoa_id, do: :ok
 
   defp mesma_tekoa(_scope, _ava), do: {:error, :cross_tekoa}
 
-  defp mesma_tekoa_row(%Scope{tekoa: %{id: tekoa_id}}, tekoa_id2) when tekoa_id == tekoa_id2, do: :ok
+  defp mesma_tekoa_row(%Scope{tekoa: %{id: tekoa_id}}, tekoa_id2) when tekoa_id == tekoa_id2,
+    do: :ok
 
   defp mesma_tekoa_row(_scope, _tekoa_id), do: {:error, :cross_tekoa}
 
-  defp nao_e_leitor_proprio(%Scope{ava: %{id: ava_id}}, %Ava{id: leitor_id}) when ava_id == leitor_id,
-    do: {:error, :already_readable}
+  defp nao_e_leitor_proprio(%Scope{ava: %{id: ava_id}}, %Ava{id: leitor_id})
+       when ava_id == leitor_id,
+       do: {:error, :already_readable}
 
   defp nao_e_leitor_proprio(_scope, _leitor), do: :ok
 

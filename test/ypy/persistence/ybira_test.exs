@@ -77,7 +77,9 @@ defmodule Ypy.Ybira.PersistenceTest do
   test "mime fora da allowlist e recusado", ctx do
     {path, _dados} = arquivo("MZ executavel")
 
-    assert Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path, mime: "application/x-msdownload") ==
+    assert Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path,
+             mime: "application/x-msdownload"
+           ) ==
              {:error, :mime_not_allowed}
 
     # A allowlist e estendivel por chamada.

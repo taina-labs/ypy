@@ -41,7 +41,9 @@ defmodule Ypy.Secp256k1 do
   end
 
   @doc "Sequencia DER para r || s fixo de 64 bytes, dobrando high-S em low-S."
-  def der_to_raw(<<0x30, _len, 0x02, rlen, r::binary-size(rlen), 0x02, slen, s::binary-size(slen)>>) do
+  def der_to_raw(
+        <<0x30, _len, 0x02, rlen, r::binary-size(rlen), 0x02, slen, s::binary-size(slen)>>
+      ) do
     r_int = :binary.decode_unsigned(r)
 
     s_int =

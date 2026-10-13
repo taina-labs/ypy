@@ -71,9 +71,17 @@ defmodule Ypy.Maraca.PolicyTest do
     test "an invite lasts 2 days" do
       emitido = DateTime.from_naive!(~N[2026-06-01 10:00:00], "Etc/UTC")
 
-      refute Policy.invite_expired?(emitido, DateTime.shift(emitido, second: 2 * 24 * 60 * 60 - 1))
+      refute Policy.invite_expired?(
+               emitido,
+               DateTime.shift(emitido, second: 2 * 24 * 60 * 60 - 1)
+             )
+
       refute Policy.invite_expired?(emitido, DateTime.shift(emitido, day: 2))
-      assert Policy.invite_expired?(emitido, DateTime.shift(emitido, second: 2 * 24 * 60 * 60 + 1))
+
+      assert Policy.invite_expired?(
+               emitido,
+               DateTime.shift(emitido, second: 2 * 24 * 60 * 60 + 1)
+             )
     end
 
     test "a reset link lasts 30 minutes" do
