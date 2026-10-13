@@ -50,7 +50,6 @@ defmodule Ypy.MixProject do
       {:ecto_sqlite3, "~> 0.25", only: [:dev, :test]},
       {:stream_data, "~> 1.4", only: [:dev, :test]},
       {:ex_doc, "~> 0.40.4", only: :dev, runtime: false},
-      {:styler, "~> 1.12", only: :dev, runtime: false}
     ]
   end
 
