@@ -74,8 +74,6 @@ defmodule Ypy.Mural.Store do
     commit(repo, keys, tekoa_id, tipo, payload, data_fn, @max_attempts)
   end
 
-  defp commit(_repo, _keys, _tekoa_id, _tipo, _payload, _data_fn, 0), do: {:error, :chain_conflict}
-
   defp commit(repo, keys, tekoa_id, tipo, payload, data_fn, attempts) do
     result = repo.transaction(fn -> write(repo, keys, tekoa_id, tipo, payload, data_fn) end)
 

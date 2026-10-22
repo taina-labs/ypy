@@ -79,7 +79,7 @@ defmodule Ypy.Ybira.PersistenceTest do
   end
 
   test "impl sem put_file/2 usa o fallback de ler na memoria", ctx do
-    armazenamento = Ypy.BlobStore.Legacy.new(dir_temporario("blobs-legacy"))
+    armazenamento = BlobStore.Legacy.new(dir_temporario("blobs-legacy"))
     {path, dados} = arquivo("conteudo do fallback")
 
     assert {:ok, file} =

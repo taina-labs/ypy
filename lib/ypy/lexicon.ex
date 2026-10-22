@@ -24,6 +24,8 @@ defmodule Ypy.Lexicon do
   de recusar escritas.
   """
 
+  @dialyzer :no_opaque
+
   @doc """
   Le todo lexicon de cada diretorio, na ordem, e devolve {indice, problemas}.
 

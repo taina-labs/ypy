@@ -10,6 +10,14 @@ defmodule Ypy.Cid do
 
   defstruct version: 1, codec: @dag_cbor, hash_algo: @sha2_256, digest: nil
 
+  @typedoc "Um CIDv1: versao, codec, algoritmo do multihash e digest."
+  @type t :: %__MODULE__{
+          version: pos_integer(),
+          codec: non_neg_integer(),
+          hash_algo: non_neg_integer(),
+          digest: binary() | nil
+        }
+
   @doc "Codec para bytes brutos enderecados por conteudo."
   def raw, do: @raw
 

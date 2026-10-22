@@ -4,12 +4,13 @@ defmodule Ypy.MixProject do
   def project do
     [
       app: :ypy,
-      version: "0.2.0",
+      version: "0.2.1",
       elixir: "~> 1.19",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
+      dialyzer: dialyzer(),
       name: "Ypy",
       description: description(),
       source_url: "https://github.com/taina-labs/ypy",
@@ -56,11 +57,20 @@ defmodule Ypy.MixProject do
     ]
   end
 
+  defp dialyzer do
+    [
+      plt_add_apps: [:mix, :ex_unit],
+      plt_core_path: "_build/plts"
+    ]
+  end
+
   defp aliases do
     [
       precommit: [
         "compile --warnings-as-errors",
         "format --check-formatted",
+        "credo --strict",
+        "dialyzer",
         "test"
       ]
     ]
