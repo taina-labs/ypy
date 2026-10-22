@@ -7,6 +7,8 @@ defmodule Ypy.BlobStore.Disk do
   Os dois primeiros bytes do digest formam os dois niveis do galho, de modo
   que nenhum diretorio fique grande demais para o filesystem. `put/2` e
   idempotente: os mesmos bytes caem sempre no mesmo CID e no mesmo caminho.
+  O `put_file/2` e o mesmo endereco, mas transmite o arquivo de origem em
+  blocos direto para o destino (upload grande sem ler na memoria).
   """
 
   @behaviour Ypy.BlobStore
@@ -17,6 +19,8 @@ defmodule Ypy.BlobStore.Disk do
   defstruct [:root]
 
   @type t :: %__MODULE__{root: Path.t()}
+
+  @chunk_bytes 65_536
 
   @doc "Um Disk enraizado em `root` (tipicamente `Ypy.Layout.blobs`)."
   @spec new(Path.t()) :: t()
@@ -31,6 +35,68 @@ defmodule Ypy.BlobStore.Disk do
          :ok <- File.write(path, data) do
       {:ok, cid}
     end
+  end
+
+  # O temporario nasce no proprio root, entao o rename e atomico no mesmo
+  # filesystem. O after limpa o que sobrou em qualquer saida (depois do
+  # rename, o rm e :enoent e fica quieto).
+  @impl true
+  def put_file(%__MODULE__{} = store, source) do
+    tmp = tmp_path(store)
+
+    try do
+      with {:ok, digest} <- copy_hashed(source, tmp),
+           cid = Cid.from_digest(digest, Cid.raw()),
+           path = path(store, cid),
+           :ok <- File.mkdir_p(Path.dirname(path)),
+           :ok <- File.rename(tmp, path) do
+        {:ok, cid}
+      end
+    after
+      _ = File.rm(tmp)
+      :ok
+    end
+  end
+
+  defp copy_hashed(source, tmp) do
+    with {:ok, in_dev} <- File.open(source, [:read, :binary]) do
+      try do
+        copy_to(in_dev, tmp)
+      after
+        _ = :file.close(in_dev)
+        :ok
+      end
+    end
+  end
+
+  defp copy_to(in_dev, tmp) do
+    with {:ok, out_dev} <- File.open(tmp, [:write, :binary, :exclusive]) do
+      try do
+        copy_loop(in_dev, out_dev, :crypto.hash_init(:sha256))
+      after
+        _ = :file.close(out_dev)
+        :ok
+      end
+    end
+  end
+
+  defp copy_loop(in_dev, out_dev, hash) do
+    case :file.read(in_dev, @chunk_bytes) do
+      {:ok, chunk} ->
+        with :ok <- :file.write(out_dev, chunk) do
+          copy_loop(in_dev, out_dev, :crypto.hash_update(hash, chunk))
+        end
+
+      :eof ->
+        {:ok, :crypto.hash_final(hash)}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp tmp_path(%__MODULE__{} = store) do
+    Path.join(store.root, "tmp-#{:erlang.unique_integer([:positive])}")
   end
 
   @impl true

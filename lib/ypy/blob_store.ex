@@ -34,4 +34,13 @@ defmodule Ypy.BlobStore do
 
   @doc "Apaga o blob de um CID. Blob ausente responde {:error, :not_found}."
   @callback delete(t(), Cid.t()) :: :ok | {:error, :not_found}
+
+  @doc """
+  Escreve os bytes do arquivo em `path` e devolve o CID deles, sem ler o
+  conteudo na memoria. Opcional: quem chama recorre ao `put/2` quando a impl
+  nao exporta.
+  """
+  @callback put_file(t(), path()) :: {:ok, Cid.t()} | {:error, term()}
+
+  @optional_callbacks put_file: 2
 end

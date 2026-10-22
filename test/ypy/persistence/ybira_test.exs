@@ -67,6 +67,30 @@ defmodule Ypy.Ybira.PersistenceTest do
            }
   end
 
+  test "o hash do arquivo e o digest do blob cid, em hex minusculo", ctx do
+    {path, dados} = arquivo("conteudo do hash")
+
+    assert {:ok, file} =
+             Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path, mime: @mime)
+
+    cid = Cid.from_data(dados, Cid.raw())
+    assert file.blob_cid == Cid.to_string(cid)
+    assert file.hash == Base.encode16(cid.digest, case: :lower)
+  end
+
+  test "impl sem put_file/2 usa o fallback de ler na memoria", ctx do
+    armazenamento = Ypy.BlobStore.Legacy.new(dir_temporario("blobs-legacy"))
+    {path, dados} = arquivo("conteudo do fallback")
+
+    assert {:ok, file} =
+             Ybira.upload(TestRepo, ctx.keys, armazenamento, ctx.dono_scope, path, mime: @mime)
+
+    cid = Cid.from_data(dados, Cid.raw())
+    assert file.blob_cid == Cid.to_string(cid)
+    assert file.hash == Base.encode16(cid.digest, case: :lower)
+    assert {:ok, ^dados} = fetch_blob(armazenamento, file.blob_cid)
+  end
+
   test "upload sem mime detectado e erro", ctx do
     {path, _dados} = arquivo("x")
 
@@ -455,6 +479,28 @@ defmodule Ypy.Ybira.PersistenceTest do
              Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path, mime: @mime)
 
     assert Ypy.Mural.entradas(TestRepo, ctx.tekoa.id) == []
+  end
+
+  ## effective_at
+
+  test "a dica de ordem da linha do tempo: coluna do produto, indice no COALESCE", ctx do
+    {path, _dados} = arquivo("conteudo")
+
+    {:ok, file} = Ybira.upload(TestRepo, ctx.keys, blobs(), ctx.dono_scope, path, mime: @mime)
+    assert file.effective_at == nil
+
+    # O produto preenche com a data de captura; como a zona, e coluna local,
+    # fora do record assinado.
+    file
+    |> Ecto.Changeset.change(effective_at: ~U[2026-10-01 10:00:00Z])
+    |> TestRepo.update!()
+
+    assert TestRepo.reload!(file).effective_at == ~U[2026-10-01 10:00:00Z]
+
+    {:ok, %{rows: rows}} =
+      TestRepo.query("SELECT name FROM sqlite_master WHERE type = 'index'")
+
+    assert "ybira_files_effective_at_index" in List.flatten(rows)
   end
 
   defp fetch_blob(armazenamento, blob_cid) do
