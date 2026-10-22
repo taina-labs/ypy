@@ -21,6 +21,11 @@ defmodule Ypy.Cid do
     %__MODULE__{codec: codec, digest: :crypto.hash(:sha256, data)}
   end
 
+  @doc "Constroi um CIDv1 de um digest sha2-256 ja calculado, sob o codec dado (padrao raw)."
+  def from_digest(digest, codec \\ @raw) do
+    %__MODULE__{codec: codec, digest: digest}
+  end
+
   @doc "Serializa para versao, codec e bytes de multihash."
   def to_bytes(%__MODULE__{} = cid) do
     Varint.encode(cid.version) <>

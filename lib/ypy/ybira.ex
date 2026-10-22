@@ -79,25 +79,25 @@ defmodule Ypy.Ybira do
   end
 
   @doc """
-  O upload (RFC_005 secao 8): le `path`, confere cota e MIME, poem os bytes
-  no `BlobStore`, monta o envelope `ypy.file.v0` e commita blob, record,
-  arquivo e cota numa transacao. Nasce sempre `:casa`; a praca e um ato
-  proprio (`publicar/5`). O mime detectado por magic bytes chega em opts.
+  O upload (RFC_005 secao 8): transmite os bytes de `path` direto ao
+  `BlobStore` (sem ler o arquivo na memoria), confere cota e MIME, monta o
+  envelope `ypy.file.v0` e commita blob, record, arquivo e cota numa
+  transacao. Nasce sempre `:casa`; a praca e um ato proprio (`publicar/5`).
+  O mime detectado por magic bytes chega em opts.
   """
   @spec upload(Ecto.Repo.t(), KeyStore.t(), BlobStore.t(), Scope.t(), Path.t(), keyword()) ::
           {:ok, File.t()} | {:error, term()}
   def upload(repo, keys, blobs, %Scope{} = scope, path, opts \\ []) when is_binary(path) do
     nome = nome(path, opts)
 
-    with {:ok, data} <- Elixir.File.read(path),
-         {:ok, %{size: size}} <- Elixir.File.stat(path),
+    with {:ok, %{size: size}} <- Elixir.File.stat(path),
          {:ok, mime} <- fetch_mime(opts),
          :ok <- mime_allowed?(mime, opts),
          {:ok, tekoa} <- fetch_tekoa(repo, scope),
          :ok <- quota_ok?(repo, tekoa, size),
          {:ok, folder} <- resolve_folder(repo, scope, opts[:folder]) do
       meta = %{size: size, mime: mime, nome: nome, folder: folder}
-      commit_upload(repo, keys, blobs, scope, tekoa, data, meta)
+      commit_upload(repo, keys, blobs, scope, tekoa, path, meta)
     end
   end
 
@@ -384,10 +384,13 @@ defmodule Ypy.Ybira do
     )
   end
 
-  defp commit_upload(repo, keys, blobs, scope, tekoa, data, meta) do
-    case blob_put(blobs, data) do
+  defp commit_upload(repo, keys, blobs, scope, tekoa, path, meta) do
+    case blob_put_file(blobs, path) do
       {:ok, blob_cid} ->
-        upload = Map.merge(meta, %{blob_cid: blob_cid, data: data})
+        # O hash e o digest do proprio CID (sha2-256 raw), em hex minusculo:
+        # nenhum segundo calculo sobre bytes na memoria.
+        hash = Base.encode16(blob_cid.digest, case: :lower)
+        upload = Map.merge(meta, %{blob_cid: blob_cid, hash: hash})
 
         case commit_upload_rows(repo, keys, scope, tekoa, upload, @max_attempts) do
           {:ok, file} ->
@@ -421,7 +424,7 @@ defmodule Ypy.Ybira do
 
     with :ok <- payload_ok?("ypy.file.v0", payload),
          {:ok, {cid_string, wire}} <- versao("ypy.file.v0", rkey, actor, payload) do
-      hash = sha256(upload.data)
+      hash = upload.hash
 
       entrada = %{
         "actor" => scope.ava.public_id,
@@ -679,12 +682,24 @@ defmodule Ypy.Ybira do
     }
   end
 
-  defp sha256(data), do: :sha256 |> :crypto.hash(data) |> Base.encode16(case: :lower)
-
   defp now_micros, do: System.os_time(:microsecond)
 
   # A impl mora no struct; o modulo behaviour nao tem callback nenhum.
-  defp blob_put(blobs, data), do: impl(blobs).put(blobs, data)
+  defp blob_put_file(blobs, path) do
+    impl = impl(blobs)
+
+    # O upload grande transmite: quando a impl sabe receber um arquivo (o
+    # callback opcional put_file/2), os bytes nem passam pela memoria;
+    # quando nao sabe, lemos o arquivo inteiro e vamos de put/2.
+    if function_exported?(impl, :put_file, 2) do
+      impl.put_file(blobs, path)
+    else
+      with {:ok, data} <- Elixir.File.read(path) do
+        impl.put(blobs, data)
+      end
+    end
+  end
+
   defp blob_delete(blobs, cid), do: impl(blobs).delete(blobs, cid)
   defp impl(store), do: store.__struct__
 end

@@ -6,6 +6,11 @@ defmodule Ypy.Ybira.File do
 
   A zona nasce `:casa` (RFC_003 D1) e so o dono muda; `apagado_em` e a
   lixeira, que os bytes ficam no blob ate o produto expurgar.
+
+  O `effective_at` e uma dica local de ordem que o produto preenche com a
+  data de captura (como a `zona`, nao faz parte do record assinado): a linha
+  do tempo ordena por `COALESCE(effective_at, inserted_at)`, coberta pelo
+  indice de expressao `ybira_files_effective_at_index`.
   """
 
   use Ecto.Schema
@@ -28,6 +33,7 @@ defmodule Ypy.Ybira.File do
           hash: String.t() | nil,
           zona: :casa | :praca,
           apagado_em: DateTime.t() | nil,
+          effective_at: DateTime.t() | nil,
           tekoa_id: integer() | nil,
           dono_id: integer() | nil,
           folder_id: integer() | nil,
@@ -45,6 +51,7 @@ defmodule Ypy.Ybira.File do
     field(:hash, :string)
     field(:zona, Ecto.Enum, values: [:casa, :praca], default: :casa)
     field(:apagado_em, :utc_datetime)
+    field(:effective_at, :utc_datetime)
 
     belongs_to(:tekoa, Tekoa)
     belongs_to(:dono, Ava)
@@ -67,7 +74,8 @@ defmodule Ypy.Ybira.File do
       :zona,
       :tekoa_id,
       :dono_id,
-      :folder_id
+      :folder_id,
+      :effective_at
     ])
     |> validate_required([
       :rkey,

@@ -96,10 +96,17 @@ defmodule Ypy.WireTest do
              "size" => 1024,
              "zona" => "casa",
              "folder" => folder_rkey(),
+             "dono" => "Ab3_xYz9_-Q1",
              "deleted_at" => nil,
              "created_at" => "2026-10-12T12:00:00Z",
              "updated_at" => "2026-10-12T12:00:00Z"
            }
+  end
+
+  test "o dono com preload sai pelo public_id, e sem preload sai null" do
+    assert File.json(file())["dono"] == "Ab3_xYz9_-Q1"
+    assert File.json(%{file() | dono: nil})["dono"] == nil
+    assert File.json(%{file() | dono: %Ecto.Association.NotLoaded{}})["dono"] == nil
   end
 
   test "a pasta pai sem preload sai null, e a lixeira sai como deleted_at" do
@@ -117,6 +124,7 @@ defmodule Ypy.WireTest do
       cid: cid(),
       nome: "Fotos",
       zona: :praca,
+      dono: ava(),
       parent: %Folder{rkey: rkey()},
       inserted_at: ~U[2026-10-12 12:00:00Z],
       updated_at: ~U[2026-10-12 12:00:00Z]
@@ -128,10 +136,13 @@ defmodule Ypy.WireTest do
              "name" => "Fotos",
              "zona" => "praca",
              "folder" => rkey(),
+             "dono" => "Ab3_xYz9_-Q1",
              "deleted_at" => nil,
              "created_at" => "2026-10-12T12:00:00Z",
              "updated_at" => "2026-10-12T12:00:00Z"
            }
+
+    assert File.json(%{folder | dono: nil})["dono"] == nil
   end
 
   test "o mapa da entrada do mural leva as coordenadas da cadeia e o payload" do
@@ -194,6 +205,7 @@ defmodule Ypy.WireTest do
       tamanho: 1024,
       hash: hash(),
       zona: :casa,
+      dono: ava(),
       folder: %Folder{rkey: folder_rkey()},
       inserted_at: ~U[2026-10-12 12:00:00Z],
       updated_at: ~U[2026-10-12 12:00:00Z]

@@ -20,6 +20,12 @@ defmodule Ypy.CidTest do
     assert Cid.raw() == 0x55
   end
 
+  test "from_digest constroi o mesmo CID do from_data, com o padrao raw" do
+    dados = "digest conhecido"
+
+    assert Cid.from_digest(:crypto.hash(:sha256, dados)) == Cid.from_data(dados, Cid.raw())
+  end
+
   test "round trips the binary form" do
     for codec <- [0x71, Cid.raw()] do
       cid = Cid.from_data(:crypto.strong_rand_bytes(32), codec)

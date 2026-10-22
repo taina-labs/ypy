@@ -139,6 +139,10 @@ components:
           nullable: true
           allOf:
             - $ref: "#/components/schemas/Rkey"
+        dono:
+          type: string
+          description: O public_id do dono, quando veio preload.
+          nullable: true
         deleted_at:
           type: string
           format: date-time
@@ -166,6 +170,10 @@ components:
           nullable: true
           allOf:
             - $ref: "#/components/schemas/Rkey"
+        dono:
+          type: string
+          description: O public_id do dono, quando veio preload.
+          nullable: true
         deleted_at:
           type: string
           format: date-time

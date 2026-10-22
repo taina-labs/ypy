@@ -7,9 +7,11 @@ defmodule Ypy.Wire.File do
   cliente de backup pular o que ja subiu.
 
   A pasta pai entra como o rkey dela, quando o belong_to (`folder` do
-  arquivo, `parent` da pasta) veio preload; sem preload, null.
+  arquivo, `parent` da pasta) veio preload; sem preload, null. O dono sai
+  pelo `public_id` dele, mesmo jogo: com preload, o id; sem preload, null.
   """
 
+  alias Ypy.Maraca.Ava
   alias Ypy.Wire
   alias Ypy.Ybira.File
   alias Ypy.Ybira.Folder
@@ -27,6 +29,7 @@ defmodule Ypy.Wire.File do
       "size" => file.tamanho,
       "zona" => zona(file.zona),
       "folder" => folder_rkey(file.folder),
+      "dono" => dono_public_id(file.dono),
       "deleted_at" => Wire.at(file.apagado_em),
       "created_at" => Wire.at(file.inserted_at),
       "updated_at" => Wire.at(file.updated_at)
@@ -40,6 +43,7 @@ defmodule Ypy.Wire.File do
       "name" => folder.nome,
       "zona" => zona(folder.zona),
       "folder" => folder_rkey(folder.parent),
+      "dono" => dono_public_id(folder.dono),
       "deleted_at" => Wire.at(folder.apagado_em),
       "created_at" => Wire.at(folder.inserted_at),
       "updated_at" => Wire.at(folder.updated_at)
@@ -51,4 +55,7 @@ defmodule Ypy.Wire.File do
 
   defp folder_rkey(%Folder{rkey: rkey}), do: rkey
   defp folder_rkey(_), do: nil
+
+  defp dono_public_id(%Ava{public_id: public_id}), do: public_id
+  defp dono_public_id(_), do: nil
 end
