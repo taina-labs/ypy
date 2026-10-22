@@ -286,8 +286,7 @@ defmodule Ypy.Ybira do
 
   defp quota_ok?(_repo, %{storage_quota_bytes: nil}, _size), do: :ok
 
-  defp quota_ok?(_repo, %{storage_quota_bytes: quota, storage_used_bytes: used}, size)
-       when is_integer(quota) do
+  defp quota_ok?(_repo, %{storage_quota_bytes: quota, storage_used_bytes: used}, size) when is_integer(quota) do
     if used + size > quota, do: {:error, :storage_quota_exceeded}, else: :ok
   end
 
@@ -451,13 +450,7 @@ defmodule Ypy.Ybira do
     end
   end
 
-  defp write_upload(repo, scope, tekoa, upload, %{
-         rkey: rkey,
-         cid: cid,
-         blob: blob,
-         wire: wire,
-         hash: hash
-       }) do
+  defp write_upload(repo, scope, tekoa, upload, %{rkey: rkey, cid: cid, blob: blob, wire: wire, hash: hash}) do
     with {:ok, _} <-
            Store.put_blob(
              repo,
@@ -491,18 +484,9 @@ defmodule Ypy.Ybira do
     end
   end
 
-  defp upload_result(_repo, _keys, _scope, _tekoa, _upload, _attempts, {:ok, file}),
-    do: {:ok, file}
+  defp upload_result(_repo, _keys, _scope, _tekoa, _upload, _attempts, {:ok, file}), do: {:ok, file}
 
-  defp upload_result(
-         repo,
-         keys,
-         scope,
-         tekoa,
-         upload,
-         attempts,
-         {:error, %Ecto.Changeset{} = changeset}
-       ) do
+  defp upload_result(repo, keys, scope, tekoa, upload, attempts, {:error, %Ecto.Changeset{} = changeset}) do
     if unique_conflict?(changeset) and attempts > 1 do
       commit_upload_rows(repo, keys, scope, tekoa, upload, attempts - 1)
     else
@@ -510,8 +494,7 @@ defmodule Ypy.Ybira do
     end
   end
 
-  defp upload_result(_repo, _keys, _scope, _tekoa, _upload, _attempts, {:error, reason}),
-    do: {:error, reason}
+  defp upload_result(_repo, _keys, _scope, _tekoa, _upload, _attempts, {:error, reason}), do: {:error, reason}
 
   # O envelope montado, checado contra o lexicon e enderecado: o par
   # {cid string, wire} que o commit grava.
@@ -564,18 +547,9 @@ defmodule Ypy.Ybira do
     end
   end
 
-  defp folder_result(_repo, _keys, _scope, _nome, _parent, _attempts, {:ok, folder}),
-    do: {:ok, folder}
+  defp folder_result(_repo, _keys, _scope, _nome, _parent, _attempts, {:ok, folder}), do: {:ok, folder}
 
-  defp folder_result(
-         repo,
-         keys,
-         scope,
-         nome,
-         parent,
-         attempts,
-         {:error, %Ecto.Changeset{} = changeset}
-       ) do
+  defp folder_result(repo, keys, scope, nome, parent, attempts, {:error, %Ecto.Changeset{} = changeset}) do
     if unique_conflict?(changeset) and attempts > 1 do
       commit_folder(repo, keys, scope, nome, parent, attempts - 1)
     else
@@ -583,8 +557,7 @@ defmodule Ypy.Ybira do
     end
   end
 
-  defp folder_result(_repo, _keys, _scope, _nome, _parent, _attempts, {:error, reason}),
-    do: {:error, reason}
+  defp folder_result(_repo, _keys, _scope, _nome, _parent, _attempts, {:error, reason}), do: {:error, reason}
 
   defp write_folder(repo, scope, rkey, cid, wire, nome, parent) do
     with {:ok, _} <- commit_record(repo, scope, rkey, "ypy.folder.v0", cid, wire) do

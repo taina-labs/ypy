@@ -49,7 +49,10 @@ defmodule Ypy.MixProject do
       {:bcrypt_elixir, "~> 3.3"},
       {:ecto_sqlite3, "~> 0.25", only: [:dev, :test]},
       {:stream_data, "~> 1.4", only: [:dev, :test]},
-      {:ex_doc, "~> 0.40.4", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.40.4", only: :dev, runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:styler, "~> 1.5", only: [:dev, :test], runtime: false}
     ]
   end
 

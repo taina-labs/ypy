@@ -118,17 +118,10 @@ defmodule Ypy.Record do
   end
 
   defp from_wire(
-         %{
-           "$type" => type,
-           "rkey" => rkey,
-           "actor" => actor,
-           "created_at" => created_at,
-           "payload" => payload
-         } = wire
+         %{"$type" => type, "rkey" => rkey, "actor" => actor, "created_at" => created_at, "payload" => payload} = wire
        ) do
     if envelope_ok?(wire, type, rkey, actor, created_at, payload) do
-      {:ok,
-       %__MODULE__{type: type, rkey: rkey, actor: actor, created_at: created_at, payload: payload}}
+      {:ok, %__MODULE__{type: type, rkey: rkey, actor: actor, created_at: created_at, payload: payload}}
     else
       {:error, :malformed}
     end

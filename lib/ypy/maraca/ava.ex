@@ -156,8 +156,6 @@ defmodule Ypy.Maraca.Ava do
       username -> username |> String.trim() |> String.downcase()
     end)
     |> validate_length(:username, min: 3, max: 50)
-    |> validate_format(:username, @username_format,
-      message: "use so minusculas, numeros, ponto, hifen ou underline"
-    )
+    |> validate_format(:username, @username_format, message: "use so minusculas, numeros, ponto, hifen ou underline")
   end
 end

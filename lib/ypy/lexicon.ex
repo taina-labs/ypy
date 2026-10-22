@@ -101,8 +101,7 @@ defmodule Ypy.Lexicon do
     |> put_variants(document, seen, entries)
   end
 
-  defp resolve(%{"properties" => properties} = node, document, seen, entries)
-       when is_map(properties) do
+  defp resolve(%{"properties" => properties} = node, document, seen, entries) when is_map(properties) do
     Map.put(
       node,
       "properties",

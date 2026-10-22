@@ -53,8 +53,7 @@ defmodule Ypy.Assembleia do
   """
   @spec votar(Ecto.Repo.t(), Scope.t(), Proposta.t(), :sim | :nao) ::
           {:ok, Voto.t()} | {:error, term()}
-  def votar(repo, %Scope{} = scope, %Proposta{} = proposta, escolha)
-      when escolha in [:sim, :nao] do
+  def votar(repo, %Scope{} = scope, %Proposta{} = proposta, escolha) when escolha in [:sim, :nao] do
     with :ok <- mesma_tekoa(scope, proposta),
          :ok <- aberta_guard(proposta),
          :ok <- prazo_guard(proposta) do
